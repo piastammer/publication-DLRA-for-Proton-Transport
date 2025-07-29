@@ -1,0 +1,126 @@
+# BEAM
+sv:Ph/Default/Modules = 1 "g4em-standard_opt4" 
+d:Ph/Default/EMRangeMin = 0.011 MeV
+# d:Ph/Default/EMRangeMax = 52.5 MeV
+
+i:Ma/Verbosity = 0
+i:Ts/TrackingVerbosity = 0
+i:Ts/EventVerbosity = 0
+i:Ts/RunVerbosity = 0
+b:Ts/ShowCPUTime = "True"
+i:Ts/ShowHistoryCountAtInterval = 10000000
+i:Ts/NumberOfThreads = 0
+
+#HU 0
+sv:Ma/Mat1/Components=7 "Hydrogen" "Carbon" "Nitrogen" "Oxygen" "Phosphorus" "Sulfur" "Chlorine" # names of elements
+uv:Ma/Mat1/Fractions=7 0.108 0.356 0.022 0.509 0.001 0.002 0.002 # fractions of elements
+d:Ma/Mat1/Density= 1.0 g/cm3
+d:Ma/Mat1/MeanExcitationEnergy= 75 eV
+
+#HU -400
+sv:Ma/Mat2/Components=12 "Hydrogen" "Carbon" "Nitrogen" "Oxygen" "Sodium" "Magnesium" "Phosphorus" "Sulfur" "Chlorine" "Argon" "Potassium" "Calcium"  # names of elements
+uv:Ma/Mat2/Fractions=12 0.103 0.105 0.031 0.749 0.002 0.000 0.002 0.003 0.003 0.000 0.002 0.000# fractions of elements
+d:Ma/Mat2/Density= 0.6190303991130821 g/cm3
+d:Ma/Mat2/MeanExcitationEnergy= 75 eV
+
+
+d:Tf/TimelineEnd = 2000 ms
+i:Tf/NumberOfSequentialTimes = 2
+s:Tf/Beam/Current/Function = "Step"
+dv:Tf/Beam/Current/Times = 2 1000 2000 ms
+iv:Tf/Beam/Current/Values = 2 0 10000000 
+
+s:Tf/Beam/PosX/Function = "Step"
+dv:Tf/Beam/PosX/Times = 2 1000 2000 ms
+dv:Tf/Beam/PosX/Values = 2 0 0 cm
+
+s:Tf/Beam/RotX/Function = "Step"
+dv:Tf/Beam/RotX/Times = 2 1000 2000 ms
+dv:Tf/Beam/RotX/Values = 2 0 90 deg #rotate here
+
+s:Tf/Beam/PosY/Function = "Step"
+dv:Tf/Beam/PosY/Times = 2 1000 2000 ms
+dv:Tf/Beam/PosY/Values = 2 0 Ge/Phantom/HLY cm #30deg: 0 1.5 cm #parallel: -0.4 0.4 cm
+
+s:Tf/Beam/RotY/Function = "Step"
+dv:Tf/Beam/RotY/Times = 2 1000 2000 ms
+dv:Tf/Beam/RotY/Values = 2 0 0 deg 
+
+s:Tf/Beam/PosZ/Function = "Step"
+dv:Tf/Beam/PosZ/Times = 2 1000 2000 ms
+dv:Tf/Beam/PosZ/Values = 2  Ge/Phantom/HLZ 0 cm #30deg: Ge/Phantom/HLZ 2.598075 cm #parallel: Ge/Phantom/HLZ Ge/Phantom/HLZ cm
+
+s:Tf/Beam/RotZ/Function = "Step"
+dv:Tf/Beam/RotZ/Times = 2 1000 2000 ms
+dv:Tf/Beam/RotZ/Values = 2 0 0 deg 
+
+s:Tf/Beam/Energy/Function = "Step"
+dv:Tf/Beam/Energy/Times = 2 1000 2000 ms
+dv:Tf/Beam/Energy/Values = 2 50 50 MeV #30deg: 50 55 MeV
+ 
+s:Tf/Beam/EnergySpread/Function = "Step"
+dv:Tf/Beam/EnergySpread/Times = 1 2000 ms
+uv:Tf/Beam/EnergySpread/Values = 1 1
+
+s:So/PencilBeam/BeamParticle = "proton"
+d:So/PencilBeam/BeamEnergy = Tf/Beam/Energy/Value MeV
+d:So/PencilBeam/BeamPositionSpreadX = 0.3 cm
+d:So/PencilBeam/BeamPositionSpreadY = 0.3 cm
+i:So/PencilBeam/NumberOfHistoriesInRun = 100000000
+u:So/PencilBeam/BeamEnergySpread = 1 #
+s:So/PencilBeam/Type = "Beam" # Beam, Isotropic, Emittance or PhaseSpace
+s:So/PencilBeam/Component = "BeamSpot"
+s:So/PencilBeam/BeamPositionDistribution = "Gaussian" # None, Flat or Gaussian
+s:So/PencilBeam/BeamPositionCutoffShape = "Ellipse" # Rectangle or Ellipse (if Flat or Gaussian)
+d:So/PencilBeam/BeamPositionCutoffX = 2 cm # X extent of position (if Flat or Gaussian)
+d:So/PencilBeam/BeamPositionCutoffY = 2 cm # Y extent of position (if Flat or Gaussian)
+s:So/PencilBeam/BeamAngularDistribution = "None" # None, Flat or Gaussian
+d:So/PencilBeam/OnlyIncludeParticlesWithInitialKEBelow = 52.5 MeV
+d:So/PencilBeam/OnlyIncludeParticlesWithInitialKEAbove = 0.01 MeV
+
+#s:Ge/World/Material="G4_AIR"
+s:Ge/World/Material="Vacuum"
+d:Ge/World/HLX=2.0 cm
+d:Ge/World/HLY=4.0 cm
+d:Ge/World/HLZ=4.0 cm
+b:Ge/World/Invisible = "TRUE"
+
+s:Ge/Phantom/Type     = "TsBox"
+s:Ge/Phantom/Material = "Mat1"
+s:Ge/Phantom/Parent   = "World"
+d:Ge/Phantom/HLX      = 1 cm
+d:Ge/Phantom/HLY      = 2 cm
+d:Ge/Phantom/HLZ      = 2 cm
+d:Ge/Phantom/TransX   = 0 cm
+d:Ge/Phantom/TransY   = 0 cm
+d:Ge/Phantom/TransZ   = 0 cm
+
+s:Ge/BeamSpot/Parent = "World"
+s:Ge/BeamSpot/Type = "Group"
+d:Ge/BeamSpot/TransX = Tf/Beam/PosX/Value cm
+d:Ge/BeamSpot/TransY = -1 * Tf/Beam/PosY/Value  cm
+d:Ge/BeamSpot/TransZ = -1 * Tf/Beam/PosZ/Value  cm
+d:Ge/BeamSpot/RotX= Tf/Beam/RotX/Value deg
+d:Ge/BeamSpot/RotY= Tf/Beam/RotY/Value deg
+d:Ge/BeamSpot/RotZ= Tf/Beam/RotZ/Value deg
+
+s:Sc/EnergyDepAtPhantom/Quantity                  = "EnergyDeposit"
+s:Sc/EnergyDepAtPhantom/OutputType = "binary" # "csv" "binary" "Root" "Xml" or "DICOM"
+s:Sc/EnergyDepAtPhantom/Component = "Phantom"
+sv:Sc/EnergyDepAtPhantom/Report = 1 "Sum"
+s:Sc/EnergyDepAtPhantom/IfOutputFileAlreadyExists = "Overwrite" # "Exit" "Overwrite" or "Increment"
+b:Sc/EnergyDepAtPhantom/OutputToConsole = "False"
+s:Sc/EnergyDepAtPhantom/OutputFile = "RefCalcMC_protons_Edep_twoBeams_90deg"
+b:Sc/EnergyDepAtPhantom/PropagateToChildren = "True"
+i:Sc/EnergyDepAtPhantom/XBins = 80
+i:Sc/EnergyDepAtPhantom/YBins = 160
+i:Sc/EnergyDepAtPhantom/ZBins = 160
+
+s:Sc/EnergyDepAtPhantomSum/Quantity                  = "EnergyDeposit"
+s:Sc/EnergyDepAtPhantomSum/OutputType = "csv" # "csv" "binary" "Root" "Xml" or "DICOM"
+s:Sc/EnergyDepAtPhantomSum/Component = "Phantom"
+sv:Sc/EnergyDepAtPhantomSum/Report = 1 "Sum"
+s:Sc/EnergyDepAtPhantomSum/IfOutputFileAlreadyExists = "Overwrite" # "Exit" "Overwrite" or "Increment"
+b:Sc/EnergyDepAtPhantomSum/OutputToConsole = "True"
+s:Sc/EnergyDepAtPhantomSum/OutputFile = "RefCalcMC_protons_EdepSum_twoBeams"
+b:Sc/EnergyDepAtPhantomSum/PropagateToChildren = "True"
