@@ -1,0 +1,23 @@
+[physics]
+particle = "Protons"
+problem = "SingleBeam"
+model = "FP" 
+OmegaMin = 180
+eKin = 90
+
+[numerics]
+nx = 83
+ny = 83
+nz = 283
+nMoments = 75
+order = 2
+rank = 100
+maxRank = 100
+solverName = "Tracer_rankAdaptiveInEnergy_FP" 
+tracerFileName = "FP_E90_corrected"
+cfl = 50
+tolerance = 0.01
+
+[computation]
+trace = false
+disableGPU = false

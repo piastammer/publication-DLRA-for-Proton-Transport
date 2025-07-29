@@ -42,13 +42,13 @@ include("settings.jl")
 include("SolverGPU.jl")
 include("SolverCPU.jl")
 
-# # specify toml file location
-file_path1 = "configEnergyStepping.toml" 
-file_path2 = "configEnergySteppingFP.toml"
-file_path3 = "configSeveralBeams.toml"
-file_path4 = "configSeveralBeams_FP.toml"
-file_path5 = "configTestEnergies_90_FP.toml"
-file_path6 = "configTestEnergies_90.toml"
+#specify toml file location
+file_path1 = "configFiles/config_SingleBeam_Homogeneous_Boltzmann.toml" 
+file_path2 = "configFiles/config_SingleBeam_Homogeneous_FP.toml"
+file_path3 = "configFiles/config_SingleBeam_Heterogeneous_Boltzmann.toml"
+file_path4 = "configFiles/config_SingleBeam_Heterogeneous_FP.toml"
+file_path5 = "configFiles/config_SeveralBeams_Homogeneous_Boltzmann.toml"
+file_path6 = "configFiles/config_SeveralBeams_Homogeneous_FP.toml"
 
 # Global state for function parameters
 const dqage_state = Dict{Symbol, Any}()
@@ -67,7 +67,6 @@ function runAndPlot(file_path)
     info = "CUDA"
     @timeit to "Geometry and physics set-up" begin
         s = Settings(file_path);
-        rhoMin = minimum(s.density);
         if CUDA.functional() && ~disableGPU
             solver1 = SolverGPU(s,order);
         else
@@ -96,29 +95,9 @@ function runAndPlot(file_path)
     ZX = (s.zMid'.*ones(size(s.xMid)))
     YZ = (s.yMid'.*ones(size(s.zMid)))'
 
-
-    # # write vtk file
-    # vtkfile = vtk_grid("output/dose_nPN$(s.nPN)_$(file_name)", s.xMid, s.yMid,s.zMid)
-    # vtkfile["dose"] = dose_DLR
-    # vtkfile["dose_normalized"] = dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e)
-    # #vtkfile["dose_normToMC"] = dose_DLR./sum(dose_DLR)*88.9
-    # vtkfile["dose_uncollided"] = dose_DLR .- dose_coll
-    # #vtkfile["dose_uncollidedNorm"] = (dose_DLR .- dose_coll)./maximum(dose_DLR)
-    # vtkfile["dose_collided"] = dose_coll
-    # #vtkfile["dose_collidedNorm"] = (dose_coll)./maximum(dose_DLR)
-    # #vtkfile["u"] = u/0.5/sqrt(solver1.gamma[1])
-    # outfiles = vtk_save(vtkfile)
-
-    # vtkfile = vtk_grid("output/IDD_$(s.solverName)_nz$(s.NCellsZ)_$(s.epsAdapt)_nPn$(s.nPN)",[0.0],[0.0],s.zMid)
-    # vtkfile["IDD"] = sum(sum(dose_DLR./maximum(dose_DLR),dims=1),dims=2)
-    # outfiles = vtk_save(vtkfile)
-
     save("output/rankInEnergy_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName).jld2", "energy", solver1.csd.eGrid[2:end], "rank", rankInTime₂[2,:])
-    if s.non_uniform
-         save("output/dose_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName)_$(file_name)_nonUniform.jld2", "dose", normalize_integralEnergy(dose_DLR,s.xMid,s.yMid,s.zMid,Float64(mu_e)),"x", s.xMid,"y",s.yMid,"z",s.zMid)
-    else
-        save("output/dose_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName)_$(file_name).jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e),"x", s.xMid,"y",s.yMid,"z",s.zMid)
-    end
+    save("output/dose_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName)_$(file_name).jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e),"x", s.xMid,"y",s.yMid,"z",s.zMid)
+
     epsAdapt=s.epsAdapt
     #epsAdapt1=s1.epsAdapt
     fig = figure()
@@ -170,8 +149,9 @@ function runAndPlot(file_path)
     println("main for config $(file_path) finished")
 end
 
-# runAndPlot(file_path1)
+runAndPlot(file_path1)
 # runAndPlot(file_path2)
 # runAndPlot(file_path3)
 # runAndPlot(file_path4)
-runAndPlot(file_path5)
+# runAndPlot(file_path5)
+# runAndPlot(file_path6)

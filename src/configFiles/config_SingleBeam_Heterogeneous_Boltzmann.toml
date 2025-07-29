@@ -1,0 +1,25 @@
+[physics]
+particle = "Protons"
+problem = "matfromCT"
+model = "Boltzmann" 
+OmegaMin = 0
+eKin = 80
+
+[numerics]
+nx = 23
+ny = 23
+nz = 73
+nMoments = 75
+order = 2
+rank = 100
+maxRank = 100
+solverName = "Tracer_rankAdaptiveInEnergy" 
+tracerFileName = "Boltzmann_E80_res1mm_BoxInsert"
+cfl = 50
+tolerance = 0.01
+
+[computation]
+trace = false
+disableGPU = false
+
+

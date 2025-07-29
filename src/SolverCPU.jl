@@ -11,10 +11,7 @@ using Einsum
 using Base.Threads
 using Interpolations
 using TimerOutputs
-#using QuasiMonteCarlo
 using Random, Distributions
-#using Plots; pythonplot()
-@pyimport matplotlib.animation as anim
 
 include("CSD.jl")
 include("PNSystemCPU.jl")
@@ -176,12 +173,6 @@ mutable struct SolverCPU{T<:AbstractFloat}
         new{T}(T.(x),T.(y),T.(z),order,settings,gamma,csd,pn,stencil,density,densityVec,dose,boundaryIdx,Q,T.(O),T.(M),T);
     end
 end
-
-py"""
-import numpy
-def qr(A):
-    return numpy.linalg.qr(A)
-"""
 
 function SolveTracer_fullPnInEnergy(obj::SolverCPU{T}, model::String="Boltzmann", trace::Bool=false) where {T<:AbstractFloat}
     order = obj.order
@@ -629,7 +620,8 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
     S = zeros(T,r,r);
     K = zeros(T,size(X));
 
-    XNew = zeros(T,nx*ny,r)
+    MUp = zeros(T,r,r)
+    NUp = zeros(T,r,r)
 
     # impose boundary condition
     X[obj.boundaryIdx,:] .= 0.0;
@@ -638,6 +630,13 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
     dE = eTrafo[2]-eTrafo[1];
     obj.settings.dE = dE
     densityVec = obj.densityVec
+
+    Id = Diagonal(ones(T,N));
+    idx = Base.unique(i -> densityVec[i], 1:length(densityVec))
+    idxK = Vector{Vector{Int64}}([])
+    Threads.@threads for k=1:length(idx)
+    push!(idxK,findall(i->(i==densityVec[idx[k]]),densityVec))
+    end
 
     println("CFL = ",dE/min(obj.settings.dx,obj.settings.dy,obj.settings.dz)*maximum(densityInv))
 
@@ -649,504 +648,564 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
 
     uOUnc = zeros(T,nx*ny*nz);
     dose_coll = zeros(T,nx*ny*nz);
-    psi = zeros(T,nx*ny*nz,1);
 
-    stencil = UpwindStencil3D(obj.settings, order)
+    @timeit to "Setup upwind stencil" begin
+        stencil = UpwindStencil3D(obj.settings, order)
 
-    D⁺₁ = stencil.D⁺₁
-    D⁺₂ = stencil.D⁺₂
-    D⁺₃ = stencil.D⁺₃
-    D⁻₁ = stencil.D⁻₁
-    D⁻₂ = stencil.D⁻₂
-    D⁻₃ = stencil.D⁻₃
+        D⁺₁ = stencil.D⁺₁
+        D⁺₂ = stencil.D⁺₂
+        D⁺₃ = stencil.D⁺₃
+        D⁻₁ = stencil.D⁻₁
+        D⁻₂ = stencil.D⁻₂
+        D⁻₃ = stencil.D⁻₃
 
-    Ax,Ay,Az = SetupSystemMatrices(obj.pn);
-    Σ₁ = eigvals(Ax)
-    T₁ = eigvecs(Ax)
-    T₁⁻¹ = T₁'
-    Σ₁⁺ = copy(Σ₁); Σ₁⁺[Σ₁⁺ .< 0] .= 0;
-    Σ₁⁻ = copy(Σ₁); Σ₁⁻[Σ₁⁻ .> 0] .= 0;
+        Ax,Ay,Az = SetupSystemMatrices(obj.pn);
+        Σ₁ = eigvals(Ax)
+        T₁ = eigvecs(Ax)
+        T₁⁻¹ = T₁'
+        Σ₁⁺ = copy(Σ₁); Σ₁⁺[Σ₁⁺ .< 0] .= 0;
+        Σ₁⁻ = copy(Σ₁); Σ₁⁻[Σ₁⁻ .> 0] .= 0;
 
-    Σ₂ = eigvals(Ay)
-    T₂ = eigvecs(Ay)
-    T₂⁻¹ = T₂'
-    Σ₂⁺ = copy(Σ₂); Σ₂⁺[Σ₂⁺ .< 0] .= 0;
-    Σ₂⁻ = copy(Σ₂); Σ₂⁻[Σ₂⁻ .> 0] .= 0;
+        Σ₂ = eigvals(Ay)
+        T₂ = eigvecs(Ay)
+        T₂⁻¹ = T₂'
+        Σ₂⁺ = copy(Σ₂); Σ₂⁺[Σ₂⁺ .< 0] .= 0;
+        Σ₂⁻ = copy(Σ₂); Σ₂⁻[Σ₂⁻ .> 0] .= 0;
 
-    Σ₃ = eigvals(Az)
-    T₃ = eigvecs(Az)
-    T₃⁻¹ = T₃'
-    Σ₃⁺ = copy(Σ₃); Σ₃⁺[Σ₃⁺ .< 0] .= 0;
-    Σ₃⁻ = copy(Σ₃); Σ₃⁻[Σ₃⁻ .> 0] .= 0;
-    ∫Y₀⁰dΩ = T(4 * pi / sqrt(4 * pi)); 
+        Σ₃ = eigvals(Az)
+        T₃ = eigvecs(Az)
+        T₃⁻¹ = T₃'
+        Σ₃⁺ = copy(Σ₃); Σ₃⁺[Σ₃⁺ .< 0] .= 0;
+        Σ₃⁻ = copy(Σ₃); Σ₃⁻[Σ₃⁻ .> 0] .= 0;
+        ∫Y₀⁰dΩ = T(4 * pi / sqrt(4 * pi)); 
+    end 
 
-    nPsi = size(psiE,1)
-    E2S = LinearInterpolation(obj.csd.eGrid[end:-1:1],obj.csd.S[end:-1:1]; extrapolation_bc=Flat())
-    E_tracer[1] = E_tracer[1].-0.001
-    ETracer2E = interpolate((1:nPsi,E_tracer[1:end]), psiE,(NoInterp(),Gridded(Linear())))
-    psiE = nothing
-
+    @timeit to "Interpolate to energy grid" begin
+        nPsi = size(psiE,1)
+        nB = size(psiE,3)
+        psi = zeros(T,nx*ny*nz,nB);
+        E_tracer[1] = E_tracer[1].-0.001
+        if nB == 1
+            ETracer2E = interpolate((1:nPsi,E_tracer[1:end]), psiE[:,:,1],(NoInterp(),Gridded(Linear())))
+        else
+            ETracer2E = interpolate((1:nPsi,E_tracer[1:end],1:nB), psiE,(NoInterp(),Gridded(Linear()),NoInterp()))
+        end
+        psiE = nothing
+    end
+    
+    Sinv = zeros(T,nPsi)
+    wMat = T.(matComp(obj.settings.densityHU[:]).*obj.settings.density[:]'./100);
+    Nmat = size(wMat,1)
+    
     #loop over energy
-    @timeit to "DLRA" begin
-        for n=2:nEnergies
-            S_E = diag(S[n,:]) # stopping power can depend on energy and space
-            dE = energy[n-1] - energy[n]
-            # compute scattering coefficients at current energy
-            if model == "FP" 
-                sigmaS = 0; #FP, outscattering included in coefficient xi
-                xi = T.(XiAtEnergy(obj.csd,energy[n])) #transport crosssection FP
-            elseif model == "Hybrid"
-                sigmaS = SigmaAtEnergy(obj.csd,energy[n])
-                xi = T.(XiAtEnergy(obj.csd,energy[n])) 
-            else 
-                sigmaS = SigmaAtEnergy(obj.csd,energy[n])
-            end
-            psi .= ETracer2E.(1:nPsi,obj.csd.eGrid[n]) .*densityVec
-            
-            ############## Dose Computation ##############
-            obj.dose .+= 0.5*dEGrid * (X*S*W[1,:]+psi*MReduced[1,:])* ∫Y₀⁰dΩ  
-            dose_coll .+= 0.5*dEGrid * (X*S*W[1,:]* ∫Y₀⁰dΩ ) 
+    println("Starting energy loop")
+     @timeit to "DLRA" begin
+         for n=2:nEnergies
+             dE = energy[n-1] - energy[n]
+             dEGrid = energy[n-1] - energy[n]
+             # compute scattering coefficients at current energy
+             if model == "FP"
+                xi = T.(XiAtEnergyandX(obj.csd,energy[n])) #transport crosssection FP
+                sigmaS = zeros(1,Nmat); #FP, outscattering included in coefficient xi 
+             else 
+                sigmaS = SigmaAtEnergyandX(obj.csd,energy[n])
+             end
 
-            Dvec = zeros(obj.pn.nTotalEntries)
-            if model == "FP"
-                for l = 0:obj.pn.N
-                    for k=-l:l
-                        i = GlobalIndex( l, k );
-                        Dvec[i+1] = -0.5*l*(l+1)*xi[1] #FP
+             Dvec = zeros(obj.pn.nTotalEntries,Nmat)
+             if model == "FP"
+                for j=1:Nmat
+                    for l = 0:obj.pn.N
+                         for k=-l:l
+                             i = GlobalIndex( l, k );
+                            Dvec[i+1,j] = 0.5*xi[1,j]*(-l*(l+1))#Fokker-Planck
+                        end
+                     end
+                 end
+             else
+                for j=1:Nmat
+                    for l = 0:obj.pn.N
+                        for k=-l:l
+                            i = GlobalIndex( l, k );
+                            Dvec[i+1,j] = sigmaS[l+1,j] #Boltzmann
+                        end
                     end
                 end
-            elseif model == "Hybrid"
-                for l = 0:obj.pn.N
-                    for k=-l:l
-                        i = GlobalIndex( l, k );
-                        Dvec[i+1] = -0.5*l*(l+1)*xi[1] + sigmaS[l+1] 
-                    end
+             end
+             sigmaS1 = T.(sigmaS[1,:])
+
+             for j=1:length(idx)
+                Sinv[idxK[j]] .= 1 ./obj.csd.S[n-1,j]
+             end
+
+             if nB == 1 
+                psi .= ETracer2E.(1:nPsi,obj.csd.eGrid[n]) #stopping power already included in tracer
+             else
+                for b=1:nB
+                    psi[:,b] .= ETracer2E.(1:nPsi,obj.csd.eGrid[n],b) #stopping power already included in tracer
                 end
-            else
-                for l = 0:obj.pn.N
-                    for k=-l:l
-                        i = GlobalIndex( l, k );
-                        Dvec[i+1] = sigmaS[l+1]
-                    end
-                end
-            end
+             end
 
-            D = Diagonal(sigmaS[1] .- Dvec);
-
-            if n > 2 # perform streaming update after first collision (before solution is zero)
-                XD⁺₁X = X'*D⁺₁*X
-                XD⁻₁X = X'*D⁻₁*X
-                XD⁺₂X = X'*D⁺₂*X
-                XD⁻₂X = X'*D⁻₂*X
-                XD⁺₃X = X'*D⁺₃*X
-                XD⁻₃X = X'*D⁻₃*X
-
-                WΣ₁⁺W = (W'*T₁)*Diagonal(Σ₁⁺)*(T₁⁻¹*W)
-                WΣ₁⁻W = (W'*T₁)*Diagonal(Σ₁⁻)*(T₁⁻¹*W)
-                WΣ₂⁺W = (W'*T₂)*Diagonal(Σ₂⁺)*(T₂⁻¹*W)
-                WΣ₂⁻W = (W'*T₂)*Diagonal(Σ₂⁻)*(T₂⁻¹*W)
-                WΣ₃⁺W = (W'*T₃)*Diagonal(Σ₃⁺)*(T₃⁻¹*W)
-                WΣ₃⁻W = (W'*T₃)*Diagonal(Σ₃⁻)*(T₃⁻¹*W)
-
+             if n > 2 # perform streaming update after first collision (before solution is zero)
                 function FLx(t, L)
-                    S = E2S(t)
-                    return - (Diagonal(Σ₁⁺)*L*XD⁺₁X' .+ Diagonal(Σ₁⁻)*L*XD⁻₁X')
+                    return - (Σ₁⁺.*L*(X'*D⁺₁*(Sinv.*X))' .+ Σ₁⁻.*L*(X'*D⁻₁*(Sinv.*X))')
                 end
             
                 function FLy(t, L)
-                    S = E2S(t)
-                    return - (Diagonal(Σ₂⁺)*L*XD⁺₂X' .+ Diagonal(Σ₂⁻)*L*XD⁻₂X')
+                    return - (Σ₂⁺.*L*(X'*D⁺₂*(Sinv.*X))' .+ Σ₂⁻.*L*(X'*D⁻₂*(Sinv.*X))')
                 end
 
                 function FLz(t, L)
-                    S = E2S(t)
-                    return - (Diagonal(Σ₃⁺)*L*XD⁺₃X' .+ Diagonal(Σ₃⁻)*L*XD⁻₃X')
+                    return - (Σ₃⁺.*L*(X'*D⁺₃*(Sinv.*X))' .+ Σ₃⁻.*L*(X'*D⁻₃*(Sinv.*X))')
                 end
 
                 function FKx(t, K)
-                    S = E2S(t)
-                    return - (D⁺₁*S_E*K*WΣ₁⁺W .+ D⁻₁*K*WΣ₁⁻W)
+                    return - (D⁺₁*(Sinv.*K)*((W'*T₁)*(Σ₁⁺.*(T₁⁻¹*W))) .+ D⁻₁*(Sinv.*K)*((W'*T₁)*(Σ₁⁻.*(T₁⁻¹*W))))
                 end
             
                 function FKy(t, K)
-                    S = E2S(t)
-                    return - (D⁺₂*S_E*K*WΣ₂⁺W .+ D⁻₂*K*WΣ₂⁻W)
+                    return - (D⁺₂*(Sinv.*K)*((W'*T₂)*(Σ₂⁺.*(T₂⁻¹*W))) .+ D⁻₂*(Sinv.*K)*((W'*T₂)*(Σ₂⁻.*(T₂⁻¹*W))))
 
                 end
 
                 function FKz(t, K)
-                    S = E2S(t)
-                    return - (D⁺₃*S_E*K*WΣ₃⁺W .+ D⁻₃*K*WΣ₃⁻W)
+                    return - (D⁺₃*(Sinv.*K)*((W'*T₃)*(Σ₃⁺.*(T₃⁻¹*W))) .+ D⁻₃*(Sinv.*K)*((W'*T₃)*(Σ₃⁻.*(T₃⁻¹*W))))
                 end
-
-                function FSx(t, S)
-                    S = E2S(t)
-                    return - (XD⁺₁X*S*WΣ₁⁺W .+ XD⁻₁X*S*WΣ₁⁻W)
+ 
+                 ################## K-step ##################
+                X[obj.boundaryIdx,:] .= 0.0;
+ 
+                 K = X*S;
+                 K .= rk4(dE, FKx, K)
+                 K .= rk4(dE, FKy, K)
+                 K .= rk4(dE, FKz, K)
+                 Xtmp,_,_ = svd([X K]); MUp = Xtmp' * X;
+             
+                 ################## L-step ##################
+                 L = T₁⁻¹*W*S';
+                 L .= T₁*rk4(dE, FLx, L)
+                 L .= T₂⁻¹*L
+                 L .= T₂*rk4(dE, FLy, L)
+                 L .= T₃⁻¹*L
+                 L .= T₃*rk4(dE, FLz, L)
+ 
+                 Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
+                 X = Xtmp;
+                 W = Wtmp;
+ 
+                 # impose boundary condition
+                 X[obj.boundaryIdx,:] .= 0.0;
+                 ################## S-step ##################
+                 function FSx(t, S)
+                    return - ((X'*D⁺₁*(Sinv.*X))*S*((W'*T₁)*(Σ₁⁺.*(T₁⁻¹*W))) .+ (X'*D⁻₁*(Sinv.*X))*S*((W'*T₁)*(Σ₁⁻.*(T₁⁻¹*W))))
                 end
             
                 function FSy(t, S)
-                    S = E2S(t)
-                    return - (XD⁺₂X*S*WΣ₂⁺W .+ XD⁻₂X*S*WΣ₂⁻W)
+                    return - ((X'*D⁺₂*(Sinv.*X))*S*((W'*T₂)*(Σ₂⁺.*(T₂⁻¹*W))) .+ (X'*D⁻₂*(Sinv.*X))*S*((W'*T₂)*(Σ₂⁻.*(T₂⁻¹*W))))
                 end
 
                 function FSz(t, S)
-                    S = E2S(t)
-                    return - (XD⁺₃X*S*WΣ₃⁺W .+ XD⁻₃X*S*WΣ₃⁻W)
+                    return - ((X'*D⁺₃*(Sinv.*X))*S*((W'*T₃)*(Σ₃⁺.*(T₃⁻¹*W))) .+ (X'*D⁻₃*(Sinv.*X))*S*((W'*T₃)*(Σ₃⁻.*(T₃⁻¹*W))))
                 end
-
-                ################## K-step ##################
-                X[obj.boundaryIdx,:] .= 0.0;
-
-                K = X*S;
-                K .= rk4(dE, FKx, K)
-                K .= rk4(dE, FKy, K)
-                K .= rk4(dE, FKz, K)
-                Xtmp,_ = py"qr"([X K]); X1Tilde = Xtmp[:,(r+1):end];
-
-                ################## L-step ##################
-                L = T₁⁻¹*W*S';
-                L .= T₁*rk4(dE, FLx, L)
-                L .= T₂⁻¹*L
-                L .= T₂*rk4(dE, FLy, L)
-                L .= T₃⁻¹*L
-                L .= T₃*rk4(dE, FLz, L)
-
-                Wtmp,_ = py"qr"([W L]); W1Tilde = Wtmp[:,(r+1):end];
-
-                # impose boundary condition
-                X[obj.boundaryIdx,:] .= 0.0;
-                ################## S-step ##################
-                S .= rk4(dE, FSx, S)
-                S .= rk4(dE, FSy, S)
-                S .= rk4(dE, FSz, S)
-
-                SNew = zeros(T, 2 * r, 2 * r);
-
-                SNew[1:r,1:r] .= S;
-                SNew[(r+1):end,1:r] .= X1Tilde'*K;
-                SNew[1:r,(r+1):end] .= L' * W1Tilde;
-
-                # truncate
-                X, S, W = truncate!(obj,T.([X X1Tilde]),SNew,T.([W W1Tilde]));
-                r = size(S,1)
-            end
-
-            ############## Out Scattering ##############
-            L = W*S';
-
-            for i = 1:r
-                L[:,i] = (Id .+ dE*D)\L[:,i]
-            end
-
-            W,S1,S2 = svd(L)
-            S .= S2 * Diagonal(S1)
-
-            ############## In Scattering ##############
-            MᵀDW = MReduced'*(Diagonal(Dvec)*W)
-            Xᵀψ = (X'*psi)
-
-            ################## K-step ##################
-            X[obj.boundaryIdx,:] .= 0.0;
-            K = X*S;
-            K .= K .+ dE * psi * MᵀDW;
-            K[obj.boundaryIdx,:] .= 0.0; # update includes the boundary cell, which should not generate a source, since boundary is ghost cell. Therefore, set solution at boundary to zero
-
-            Xtmp,_ = py"qr"([X K]); X1Tilde = Xtmp[:,(r+1):end];
-
-            ################## L-step ##################
-            L = W*S';
-            L = L .+dE*Diagonal(Dvec)*MReduced*Xᵀψ';
-
-            Wtmp,_ = py"qr"([W L]); W1Tilde = Wtmp[:,(r+1):end];
-
-            ################## S-step ##################
-            S .= S .+dE*Xᵀψ*MᵀDW;
-
-            SNew = zeros(T, 2 * r, 2 * r);
-
-            SNew[1:r,1:r] .= S;
-            SNew[(r+1):end,1:r] .= X1Tilde'*K;
-            SNew[1:r,(r+1):end] .= L' * W1Tilde;
-
-            ############## Dose Computation ##############
-            obj.dose += 0.5*dEGrid * (X*S*W[1,:]+psi*MReduced[1,:])* ∫Y₀⁰dΩ  #* obj.csd.S[n] ./ densityVec;
-            dose_coll += 0.5*dEGrid * (X*S*W[1,:] )* ∫Y₀⁰dΩ  #* obj.csd.S[n] ./ densityVec;
-            # truncate
-            X, S, W = truncate!(obj,T.([X X1Tilde]),SNew,T.([W W1Tilde]));
-            r = size(S,1)
-            rVec[1,n] = t;
-            rVec[2,n] = r;
-
-            t -= dE;
+                 S = MUp*S*(NUp')
+                 S .= rk4(dE, FSx, S)
+                 S .= rk4(dE, FSy, S)
+                 S .= rk4(dE, FSz, S)
+ 
+                 # truncate
+                 X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+                 r = size(S,1)
+             end
             
-            next!(prog)
-        end
+             ############# Out Scattering ##############
+     
+             ################## L-step ##################
+             L = W*S';
+             L0 = L
+             if model == "FP"
+                for j=1:Nmat
+                    #L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
+                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                end
+            else
+                 for j=1:Nmat
+                    L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
+                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                end
+            end
+             W,S1,S2 = svd(L)
+             S .= S2 * Diagonal(S1)
+     
+             ############## In Scattering ##############
+     
+             ################## K-step ##################
+             X[obj.boundaryIdx,:] .= 0.0;
+             K = X*S;
+             for j=1:Nmat
+                K += dE * wMat[j,:].*SinvEnd .* psi * MReduced'*(Dvec[:,j].*W); 
+             end
+             K[obj.boundaryIdx,:] .= 0.0; # update includes the boundary cell, which should not generate a source, since boundary is ghost cell. Therefore, set solution at boundary to zero
+ 
+             Xtmp,_,_ = svd([X K]); MUp = Xtmp' * X;
+             
+             ################## L-step ##################
+             L = W*S';
+             for j=1:Nmat
+                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*SinvEnd.*psi))'; 
+             end
+             Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
+ 
+             X = Xtmp;
+             W = Wtmp;
+             ################## S-step ##################
+             S = MUp*S*(NUp')
+             for j=1:Nmat
+                S += dE*(X'*(wMat[j,:].*SinvEnd.*psi))*MReduced'*(Dvec[:,j].*W);
+             end
+
+             ############## Dose Computation ##############
+             dose .+= dEGrid * (X*S*(W'*e1)+psi*M1)* ∫Y₀⁰dΩ #add density to compute dose instead of energy dep.
+             dose_coll .+= dEGrid *(X*S*(W'*e1) )* ∫Y₀⁰dΩ 
+             # truncate
+             X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+             r = size(S,1)
+             rVec[1,n] = energy[n];
+             rVec[2,n] = r;
+
+            #  uncomment to write out angular basis for plotting
+            #    if n == nEnergies || n== Int(floor(nEnergies/5)) || n==2
+            #     _,_,V = svd(S)
+            #     writedlm("Wdlr_$(s.tracerFileName)_$n.txt", Matrix(W))
+            #  end
+
+             next!(prog) # update progress bar
+         end
+     end
+ 
+     U,Sigma,V = svd(S);
+     # return solution and dose
+     return X*U, 0.5*sqrt(obj.gamma[1])*Sigma, obj.O*W*V,W*V,dose,dose_coll,rVec,psi;
+ end
+
+function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="Boltzmann", trace::Bool=false) where {T<:AbstractFloat}
+    # Get rank
+    r=Int(floor(obj.settings.r / 2));
+    order = obj.order
+ 
+    eTrafo = obj.csd.eTrafo;
+    energy = obj.csd.eGrid;
+    S = obj.csd.S;
+ 
+    nx = obj.settings.NCellsX;
+    ny = obj.settings.NCellsY;
+    nz = obj.settings.NCellsZ;
+    nq = obj.Q.nquadpoints;
+    N = obj.pn.nTotalEntries;
+    s = obj.settings;
+ 
+    # Run raytracer or load solution
+    @timeit to "Ray-tracer" begin
+        # determine uncollided flux with tracer   
+        E_tracer, psiE = RunTracer_UniDirectional(obj,model,trace) 
+    end
+    
+    q = [obj.settings.Omega1 obj.settings.Omega2 obj.settings.Omega3]
+        normQ = zeros(size(obj.Q.pointsxyz,1))
+    for k = 1:size(obj.Q.pointsxyz,1)
+        normQ[k] = norm(obj.Q.pointsxyz[k,:] .- q)
+    end
+    _,idxBeam = findmin(normQ)
+    
+    qReduced = T.(obj.Q.pointsxyz[idxBeam,:])
+    MReduced = T.(obj.M[:,idxBeam])
+    OReduced = T.(obj.O[idxBeam,:])
+    nq = length(idxBeam);
+   
+ 
+    # Low-rank approx of init data:
+    X,_,_ = svd(zeros(T,nx*ny*nz,r));
+    W,_,_ = svd(zeros(T,N,r));
+ 
+    # rank-r truncation:
+    X = Matrix(X[:,1:r]);
+    W = Matrix(W[:,1:r]);
+    S = zeros(T,r,r);
+    K = zeros(T,size(X));
+ 
+    MUp = zeros(T,r,r)
+    NUp = zeros(T,r,r)
+ 
+    # impose boundary condition
+    X[obj.boundaryIdx,:] .= 0.0;
+ 
+    nEnergies = length(energy);
+    dE = energy[1] - energy[2]
+    obj.settings.dE = dE
+    densityVec = obj.densityVec
+
+    Id = Diagonal(ones(T,N));
+    idx = Base.unique(i -> densityVec[i], 1:length(densityVec))
+    idxK = Vector{Vector{Int64}}([])
+    Threads.@threads for k=1:length(idx)
+    push!(idxK,findall(i->(i==densityVec[idx[k]]),densityVec))
+    end
+ 
+    println("CFL = ",dE/min(obj.settings.dx,obj.settings.dy,obj.settings.dz))
+ 
+    prog = Progress(nEnergies-1,1)
+    rVec = r .* ones(2,nEnergies)
+    t = energy[end];
+ 
+    counterPNG = 0;
+ 
+    dose_coll = CUDA.zeros(T,nx*ny*nz);
+    dose = CuArray(obj.dose);
+ 
+    @timeit to "Setup upwind stencil" begin
+        stencil = UpwindStencil3D(obj.settings, order)
+
+        D⁺₁ = stencil.D⁺₁
+        D⁺₂ = stencil.D⁺₂
+        D⁺₃ = stencil.D⁺₃
+        D⁻₁ = stencil.D⁻₁
+        D⁻₂ = stencil.D⁻₂
+        D⁻₃ = stencil.D⁻₃
+
+        Ax,Ay,Az = SetupSystemMatrices(obj.pn);
+        Σ₁ = eigvals(Ax)
+        T₁ = eigvecs(Ax)
+        T₁⁻¹ = T₁'
+        Σ₁⁺ = copy(Σ₁); Σ₁⁺[Σ₁⁺ .< 0] .= 0;
+        Σ₁⁻ = copy(Σ₁); Σ₁⁻[Σ₁⁻ .> 0] .= 0;
+
+        Σ₂ = eigvals(Ay)
+        T₂ = eigvecs(Ay)
+        T₂⁻¹ = T₂'
+        Σ₂⁺ = copy(Σ₂); Σ₂⁺[Σ₂⁺ .< 0] .= 0;
+        Σ₂⁻ = copy(Σ₂); Σ₂⁻[Σ₂⁻ .> 0] .= 0;
+
+        Σ₃ = eigvals(Az)
+        T₃ = eigvecs(Az)
+        T₃⁻¹ = T₃'
+        Σ₃⁺ = copy(Σ₃); Σ₃⁺[Σ₃⁺ .< 0] .= 0;
+        Σ₃⁻ = copy(Σ₃); Σ₃⁻[Σ₃⁻ .> 0] .= 0;
+        ∫Y₀⁰dΩ = T(4 * pi / sqrt(4 * pi)); 
     end
 
-    U,Sigma,V = svd(S);
-    # return solution and dose
-    return X*U, 0.5*sqrt(obj.gamma[1])*Sigma, obj.O*W*V, W*V,obj.dose,dose_coll,rVec,psi
-end
+    @timeit to "Interpolate to energy grid" begin
+        nPsi = size(psiE,1)
+        nB = size(psiE,3)
+        psi = zeros(T,nx*ny*nz,nB);
+        E_tracer[1] = E_tracer[1].-0.001
+        if nB == 1
+            ETracer2E = interpolate((1:nPsi,E_tracer[1:end]), psiE[:,:,1],(NoInterp(),Gridded(Linear())))
+        else
+            ETracer2E = interpolate((1:nPsi,E_tracer[1:end],1:nB), psiE,(NoInterp(),Gridded(Linear()),NoInterp()))
+        end
+        psiE = nothing
+    end
+
+    Sinv = zeros(T,nPsi)
+    wMat = T.(matComp(obj.settings.densityHU[:]).*obj.settings.density[:]'./100);
+    Nmat = size(wMat,1)
+
+    println("Starting energy loop")
+    #loop over energy
+     @timeit to "DLRA" begin
+         for n=2:nEnergies
+             dE = energy[n-1] - energy[n]
+             dEGrid = energy[n-1] - energy[n]
+             # compute scattering coefficients at current energy
+             if model == "FP"
+                xi = T.(XiAtEnergyandX(obj.csd,energy[n])) #transport crosssection FP
+                sigmaS = zeros(1,Nmat); #FP, outscattering included in coefficient xi
+             else 
+                sigmaS = SigmaAtEnergyandX(obj.csd,energy[n])
+             end
+
+             Dvec = zeros(obj.pn.nTotalEntries,Nmat)
+             if model == "FP"
+                N_corr = 19; #order used for correction of angular moments
+                for j=1:Nmat
+                    for l = 0:obj.pn.N
+                         for k=-l:l
+                             i = GlobalIndex( l, k );
+                             Dvec[i+1,j] = 0.5*xi[1,j]*(N_corr*(N_corr+1)-l*(l+1)) #with correction
+                        end
+                     end
+                    sigmaS[1,j] = 0.5*xi[1,j]*(N_corr*(N_corr+1))
+                 end
+             else
+                for j=1:Nmat
+                    for l = 0:obj.pn.N
+                        for k=-l:l
+                            i = GlobalIndex( l, k );
+                            Dvec[i+1,j] = sigmaS[l+1,j] #Boltzmann
+                        end
+                    end
+                end
+             end
+             sigmaS1 = T.(sigmaS[1,:])
+
+             for j=1:length(idx)
+                Sinv[idxK[j]] .= 1 ./obj.csd.S[n-1,j]
+             end
+
+             if nB == 1 
+                psi .= ETracer2E.(1:nPsi,obj.csd.eGrid[n]) #stopping power already included in tracer
+             else
+                for b=1:nB
+                    psi[:,b] .= ETracer2E.(1:nPsi,obj.csd.eGrid[n],b) #stopping power already included in tracer
+                end
+             end
+
+             if n > 2 # perform streaming update after first collision (before solution is zero)
+                function FLx(t, L)
+                    return - (Σ₁⁺.*L*(X'*D⁺₁*(Sinv.*X))' .+ Σ₁⁻.*L*(X'*D⁻₁*(Sinv.*X))')
+                end
+            
+                function FLy(t, L)
+                    return - (Σ₂⁺.*L*(X'*D⁺₂*(Sinv.*X))' .+ Σ₂⁻.*L*(X'*D⁻₂*(Sinv.*X))')
+                end
+
+                function FLz(t, L)
+                    return - (Σ₃⁺.*L*(X'*D⁺₃*(Sinv.*X))' .+ Σ₃⁻.*L*(X'*D⁻₃*(Sinv.*X))')
+                end
+
+                function FKx(t, K)
+                    return - (D⁺₁*(Sinv.*K)*((W'*T₁)*(Σ₁⁺.*(T₁⁻¹*W))) .+ D⁻₁*(Sinv.*K)*((W'*T₁)*(Σ₁⁻.*(T₁⁻¹*W))))
+                end
+            
+                function FKy(t, K)
+                    return - (D⁺₂*(Sinv.*K)*((W'*T₂)*(Σ₂⁺.*(T₂⁻¹*W))) .+ D⁻₂*(Sinv.*K)*((W'*T₂)*(Σ₂⁻.*(T₂⁻¹*W))))
+
+                end
+
+                function FKz(t, K)
+                    return - (D⁺₃*(Sinv.*K)*((W'*T₃)*(Σ₃⁺.*(T₃⁻¹*W))) .+ D⁻₃*(Sinv.*K)*((W'*T₃)*(Σ₃⁻.*(T₃⁻¹*W))))
+                end
+ 
+                 ################## K-step ##################
+                X[obj.boundaryIdx,:] .= 0.0;
+ 
+                 K = X*S;
+                 K .= rk4(dE, FKx, K)
+                 K .= rk4(dE, FKy, K)
+                 K .= rk4(dE, FKz, K)
+                 Xtmp,_,_ = svd([X K]); MUp = Xtmp' * X;
+             
+                 ################## L-step ##################
+                 L = T₁⁻¹*W*S';
+                 L .= T₁*rk4(dE, FLx, L)
+                 L .= T₂⁻¹*L
+                 L .= T₂*rk4(dE, FLy, L)
+                 L .= T₃⁻¹*L
+                 L .= T₃*rk4(dE, FLz, L)
+ 
+                 Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
+                 X = Xtmp;
+                 W = Wtmp;
+ 
+                 # impose boundary condition
+                 X[obj.boundaryIdx,:] .= 0.0;
+                 ################## S-step ##################
+                 function FSx(t, S)
+                    return - ((X'*D⁺₁*(Sinv.*X))*S*((W'*T₁)*(Σ₁⁺.*(T₁⁻¹*W))) .+ (X'*D⁻₁*(Sinv.*X))*S*((W'*T₁)*(Σ₁⁻.*(T₁⁻¹*W))))
+                end
+            
+                function FSy(t, S)
+                    return - ((X'*D⁺₂*(Sinv.*X))*S*((W'*T₂)*(Σ₂⁺.*(T₂⁻¹*W))) .+ (X'*D⁻₂*(Sinv.*X))*S*((W'*T₂)*(Σ₂⁻.*(T₂⁻¹*W))))
+                end
+
+                function FSz(t, S)
+                    return - ((X'*D⁺₃*(Sinv.*X))*S*((W'*T₃)*(Σ₃⁺.*(T₃⁻¹*W))) .+ (X'*D⁻₃*(Sinv.*X))*S*((W'*T₃)*(Σ₃⁻.*(T₃⁻¹*W))))
+                end
+                 S = MUp*S*(NUp')
+                 S .= rk4(dE, FSx, S)
+                 S .= rk4(dE, FSy, S)
+                 S .= rk4(dE, FSz, S)
+ 
+                 # truncate
+                 X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+                 r = size(S,1)
+             end
+            
+             ############# Out Scattering ##############
+     
+             ################## L-step ##################
+             L = W*S';
+             L0 = L
+            #implicit L-step
+                for j=1:Nmat
+                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                end
+            #explicit L-step
+                #  for j=1:Nmat
+                #     L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
+                # end
+             W,S1,S2 = svd(L)
+             S .= S2 * Diagonal(S1)
+    
+             ############## In Scattering ##############
+     
+             ################## K-step ##################
+            X[obj.boundaryIdx,:] .= 0.0;
+             K = X*S;
+             for j=1:Nmat
+                K += dE * wMat[j,:].*SinvEnd .* psi * MReduced'*(Dvec[:,j].*W);
+             end
+             K[obj.boundaryIdx,:] .= 0.0; # update includes the boundary cell, which should not generate a source, since boundary is ghost cell. Therefore, set solution at boundary to zero
+ 
+             Xtmp,_,_ = svd([X K]); MUp = Xtmp' * X;
+             
+             ################## L-step ##################
+             L = W*S';
+             for j=1:Nmat
+                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*SinvEnd.*psi))';
+             end
+             Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
+ 
+             X = Xtmp;
+             W = Wtmp;
+             ################## S-step ##################
+             S = MUp*S*(NUp')
+             for j=1:Nmat
+                S += dE*(X'*(wMat[j,:].*SinvEnd.*psi))*MReduced'*(Dvec[:,j].*W);
+             end
+
+             ############## Dose Computation ##############
+             dose .+= dEGrid * (X*S*(W'*e1)+psi*M1)* ∫Y₀⁰dΩ #add density to compute dose instead of energy dep.
+             dose_coll .+= dEGrid *(X*S*(W'*e1) )* ∫Y₀⁰dΩ 
+             # truncate
+             X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+             r = size(S,1)
+             rVec[1,n] = energy[n];
+             rVec[2,n] = r;
+            #uncomment to write out angular basis for plotting
+            #  if n == nEnergies || n== Int(floor(nEnergies/5)) || n==2
+            #     _,_,V = svd(S);
+            #     writedlm("Wdlr_$(s.tracerFileName)_$n.txt", Matrix(W))
+            #  end
+             next!(prog) # update progress bar
+         end
+    end
+ 
+     U,Sigma,V = svd(S);
+     # return solution and dose
+     return X*U, 0.5*sqrt(obj.gamma[1])*Sigma, obj.O*W*V,W*V,dose,dose_coll,rVec,psi;
+ end
 
 function RunTracer_UniDirectional(obj::SolverCPU{T}, model::String, trace::Bool) where {T<:AbstractFloat}
+    ## this function has been severely reduced since we only load precomputed tracer results in this version
     nE = 1
     E_tracer = []
     tracerDirs = [obj.settings.Omega1 obj.settings.Omega2 obj.settings.Omega3]
     nB = size(tracerDirs,1)
-
-    #use cell end and midpoints for rays
-    x = collect(range(obj.settings.a,obj.settings.b,obj.settings.sizeOfTracerCT[1]));
-    y = collect(range(obj.settings.c,obj.settings.d,obj.settings.sizeOfTracerCT[2]));
-    z = collect(range(obj.settings.e,obj.settings.f,obj.settings.sizeOfTracerCT[3]));
-    
-    out_start =  open("tracer/start.bin","w")
-    out_end =  open("tracer/end.bin","w")
-    out_weights =  open("tracer/weights.bin","w")
-    nRays = zeros(nB)
-    use_grid = true
-    random = false
-    trace_toMids = false
-
-    for b=1:nB
-        #assume beams enter the box through a unique plane and find that plane
-        face, μs, σs = get_beamAtEntry([obj.settings.a,obj.settings.c,obj.settings.e], [obj.settings.b,obj.settings.d,obj.settings.f], [obj.settings.x0[b] ,obj.settings.y0[b],obj.settings.z0[b]].- tracerDirs[b,:], tracerDirs[b,:],[obj.settings.sigmaX,obj.settings.sigmaY,obj.settings.sigmaZ])
-        println(face)
-        if face == "Left"
-            if use_grid
-                pos_yz = combination_vectors(y[2:end-1],z[2:end-1])
-                pos_xyz = zeros(size(pos_yz,1),3)
-                nRays[b] = size(pos_yz,1)
-                pos_xyz[:,2] = pos_yz[:,1]
-                pos_xyz[:,3] = pos_yz[:,2]
-                #μs = [obj.settings.y0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_yz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_yz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_yz,2))
-                nRays[b] = size(pos_yz,2)
-                pos_xyz[1:2,:] = pos_yz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.b .* tracerDirs[b,:] 
-        elseif face == "Bottom"
-            if use_grid
-                pos_xz = combination_vectors(x[2:end-1],z[2:end-1])
-                pos_xyz = zeros(size(pos_xz,1),3)
-                nRays[b] = size(pos_xz,1)
-                pos_xyz[:,1] = pos_xz[:,1]
-                pos_xyz[:,3] = pos_xz[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xz,2))
-                nRays[b] = size(pos_xz,2)
-                pos_xyz[1:2,:] = pos_xz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.d .* tracerDirs[b,:] 
-        elseif face == "Front"
-            if use_grid
-                pos_xy = combination_vectors(x[2:end-1],y[2:end-1])
-                pos_xyz = zeros(size(pos_xy,1),3)
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xy')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if      #reduce number of rays to trace
-                μs[1] .- 3*σs[1] ≤ pos_xyz[1, i] ≤ μs[1] .+ 3*σs[1] &&
-                μs[2] .- 3*σs[2] ≤ pos_xyz[2, i] ≤ μs[2] .+ 3*σs[2] ]
-                x_start = pos_xyz[:,valid_indices]
-                pos_w = pos_w[valid_indices]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-                nRays[b] = size(x_start,2)
-            elseif random
-                μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                Random.seed!(123)
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_xy = rand(pdf_rays,5000)' 
-                pos_xyz = zeros(size(pos_xy,1),3)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-                pos_w = ones(length(pos_xyz))
-                pos_xyz = pos_xyz[:, valid_indices]
-                nRays[b] = size(pos_xyz,2)
-                x_start = pos_xyz .- tracerDirs[b,:]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-            elseif trace_toMids
-                allcombinations(v...) = vec(collect(Iterators.product(v...)))
-                xtmp = allcombinations(x,y,z)
-                x_end = hcat(first.(xtmp), getfield.(xtmp,2),last.(xtmp))
-                x_start = x_end .- 10 .* tracerDirs[b,:]' 
-                pos_xyz =  rotate_xyz_to_bev(tracerDirs[b,:])*x_start'
-                pos_end = rotate_xyz_to_bev(tracerDirs[b,:])*x_end'
-                x0 = rotate_xyz_to_bev(tracerDirs[b,:])*[obj.settings.x0[b],obj.settings.y0[b],obj.settings.z0[b]]
-                μs = [x0[1],x0[2]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_w = pdf(pdf_rays,pos_xyz[1:2,:])
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                μs[1] .- 3*σs[1] ≤ pos_xyz[1, i] ≤ μs[1] .+ 3*σs[1] &&
-                μs[2] .- 3*σs[2] ≤ pos_xyz[2, i] ≤ μs[2] .+ 3*σs[2] ]#&&
-                #pos_end[3,i] ≤ 1.2*0.0022*(obj.settings.eMax-obj.settings.eRest)^1.77] # also include something here to filter out cells clearly behind range
-
-                x_start = x_start[valid_indices,:]'
-                x_end = x_end[valid_indices,:]'
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(x_start,2)
-            else
-               # pos_xy, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                x = collect(range(obj.settings.x0[b] .- 3*obj.settings.sigmaX,obj.settings.x0[b] .+ 3*obj.settings.sigmaX,20));
-                y = collect(range(obj.settings.y0[b] .- 3*obj.settings.sigmaY,obj.settings.y0[b] .+ 3*obj.settings.sigmaY,20));
-                pos_xy = combination_vectors(x,y)
-                pos_xyz = zeros(size(pos_xy,1),3)
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_w = pdf(pdf_rays,pos_xy')'
-                pos_w = pos_w[valid_indices]'
-                x_start = pos_xyz .- tracerDirs[b,:]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-            end
-        elseif face == "Right"
-            if use_grid
-                pos_yz = combination_vectors(y[2:end-1],z[2:end-1])
-                pos_xyz = ones(size(pos_yz,1),3)*obj.settings.b
-                nRays[b] = size(pos_yz,1)
-                pos_xyz[:,2] = pos_yz[:,1]
-                pos_xyz[:,3] = pos_yz[:,2]
-                #μs = [obj.settings.y0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_yz')' # pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_yz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_yz,2))
-                nRays[b] = size(pos_yz,2)
-                pos_xyz[1:2,:] = pos_yz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.b .* tracerDirs[b,:]
-        elseif face == "Top"
-            if use_grid
-                pos_xz = combination_vectors(x[2:end-1],z[2:end-1])
-                pos_xyz = ones(size(pos_xz,1),3)*obj.settings.d
-                nRays[b] = size(pos_xz,1)
-                pos_xyz[:,1] = pos_xz[:,1]
-                pos_xyz[:,3] = pos_xz[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xz,2))
-                pos_xyz[1:2,:] = pos_xz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.d .* tracerDirs[b,:] 
-        elseif face == "Back"
-            if use_grid
-                pos_xy = combination_vectors(x[2:end-1],y[2:end-1])
-                pos_xyz = ones(size(pos_xy,1),3)*obj.settings.f
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xy')' # pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xy, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xy,2))
-                nRays[b] = size(pos_xy,2)
-                pos_xyz[1:2,:] = pos_xy
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-        end
-        println("Tracing $(nRays[b]) rays for beam $b")
-        
-        #write to binary file
-        write(out_start,x_start[:])
-        write(out_end,x_end[:])
-        write(out_weights,pos_w[:])
-    end 
-    close(out_start)
-    close(out_end)
-    close(out_weights)
-    x = nothing
-    y = nothing
-    z = nothing
 
     if trace
         #Update scattering coefficients
         E = [0.000999999000000000,	0.00110000000000000,	0.00120000000000000, 0.00130000000000000,	0.00140000000000000,	0.00150000000000000,	0.00160000000000000,	0.00170000000000000,	0.00180000000000000,	0.00200000000000000,	0.00225000000000000,	0.00250000000000000,	0.00275000000000000,	0.00300000000000000,	0.00325000000000000,	0.00350000000000000,	0.00375000000000000,	0.00400000000000000,	0.00450000000000000,	0.00500000000000000,	0.00550000000000000,	0.00600000000000000,	0.00650000000000000,	0.00700000000000000,	0.00800000000000000,	0.00900000000000000,	0.0100000000000000,	0.0110000000000000,	0.0120000000000000,	0.0130000000000000,	0.0140000000000000,	0.0150000000000000,	0.0160000000000000,	0.0170000000000000,	0.0180000000000000,	0.0200000000000000,	0.0225000000000000,	0.0250000000000000,	0.0275000000000000,	0.0300000000000000,	0.0325000000000000,	0.0350000000000000,	0.0375000000000000,	0.0400000000000000,	0.0450000000000000,	0.0500000000000000,	0.0550000000000000,	0.0600000000000000,	0.0650000000000000,	0.0700000000000000,	0.0800000000000000,	0.0900000000000000,	0.100000000000000,	0.110000000000000,	0.120000000000000,	0.130000000000000,	0.140000000000000,	0.150000000000000,	0.160000000000000,	0.170000000000000,	0.180000000000000,	0.200000000000000,	0.225000000000000,	0.250000000000000,	0.275000000000000,	0.300000000000000,	0.325000000000000,	0.350000000000000,	0.375000000000000,	0.400000000000000,	0.450000000000000,	0.500000000000000,	0.550000000000000,	0.600000000000000,	0.650000000000000,	0.700000000000000,	0.800000000000000,	0.900000000000000,	1,	1.10000000000000,	1.20000000000000,	1.30000000000000,	1.40000000000000,	1.50000000000000,	1.60000000000000,	1.70000000000000,	1.80000000000000,	2,	2.25000000000000,	2.50000000000000,	2.75000000000000,	3,	3.25000000000000,	3.50000000000000,	3.75000000000000,	4,	4.50000000000000,	5,	5.50000000000000,	6,	6.50000000000000,	7,	8,	9,	10,	11,	12,	13,	14,	15,	16,	17,	18,	20,	22.5000000000000,	25,	27.5000000000000,	30,	32.5000000000000,	35,	37.5000000000000,	40,	45,	50,	55,	60,	65,	70,	80,	90,	100,	110,	120,	130,	140,	150,	160,	170,	180,	200,	225,	250];
         _ = computeOutscattering(obj.csd,T.(E.+obj.settings.eRest),T.(obj.settings.OmegaMin),"gaussIntTracer")
     end
-    #clear variables
-    pos_xyz = nothing
-    pos_xz = nothing
-    x_end = nothing
-    x_start = nothing
 
     @timeit to "Ray-tracer" begin
 
@@ -1154,11 +1213,11 @@ function RunTracer_UniDirectional(obj::SolverCPU{T}, model::String, trace::Bool)
             println("Tracer not included in this version, load existing tracer result file from \"src/tracer_results\"!")
         end
 
-        if isfile("tracer/results/$(obj.settings.tracerFileName).bin")
-            phiTracer = Array{Float64}(undef,Int.(stat("tracer/results/$(obj.settings.tracerFileName).bin").size/8))
-            io_phi = open("tracer/results/$(obj.settings.tracerFileName).bin", "r")
+        if isfile("tracer_results/$(obj.settings.tracerFileName).bin")
+            phiTracer = Array{Float64}(undef,Int.(stat("tracer_results/$(obj.settings.tracerFileName).bin").size/8))
+            io_phi = open("tracer_results/$(obj.settings.tracerFileName).bin", "r")
         else
-            error("no file tracer/results/$(obj.settings.tracerFileName).bin detected");
+            error("no file tracer_results/$(obj.settings.tracerFileName).bin detected");
         end
 
         # set up energy grid
@@ -1169,15 +1228,6 @@ function RunTracer_UniDirectional(obj::SolverCPU{T}, model::String, trace::Bool)
         phiTracer = reshape(phiTracer,(obj.settings.sizeOfTracerCT[1]*obj.settings.sizeOfTracerCT[2]*obj.settings.sizeOfTracerCT[3],nE,:))
     end
     return E_tracer[end:-1:1], phiTracer[:,end:-1:1,1:nB]
-end
-
-function rk4(Δt, f, u, i, t=0)
-    k1 = Δt * f(t, u,i)
-    k2 = Δt * f(t + Δt/2, u .+ k1/2,i)
-    k3 = Δt * f(t + Δt/2, u .+ k2/2,i)
-    k4 = Δt * f(t + Δt, u .+ k3,i)
-    
-    return u .+= (k1 + 2*k2 + 2*k3 + k4) / 6
 end
 
 function rk4(Δt, f, u, t=0)
@@ -1219,4 +1269,5 @@ function truncate!(obj::SolverCPU{T},X::Array{T,2},S::Array{T,2},W::Array{T,2}) 
 
     # return rank
     return X*U[:, 1:rmax], diagm(D[1:rmax]), W*V[:, 1:rmax];
+end
 end

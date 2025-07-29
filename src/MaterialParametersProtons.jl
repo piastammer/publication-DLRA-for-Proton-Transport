@@ -184,7 +184,7 @@ struct MaterialParametersProtons
             sigma_xi = TransportCoefficientsGFP2(settings.nPN,E_tab_PSTAR,rho,comp_vector,1,OmegaMin,true) 
         end
         @timeit to "stopping power" begin
-            S_tab_PSTAR = get_S(E_tab_PSTAR,rho,comp_vector,"tracer/proton_S_data_topas") 
+            S_tab_PSTAR = get_S(E_tab_PSTAR,rho,comp_vector,"data/proton_S_data_topas") 
         end
         E_tab_PSTAR= dropdims(E_tab_PSTAR, dims = tuple(findall(size(E_tab_PSTAR) .== 1)...)).+ E_rest
         println("Determined material parameters")
@@ -649,7 +649,7 @@ struct MaterialParametersProtons
         return comp_vector
     end
 
-    function get_S(E_MeV,rho,comp_vector,file_name="tracer/proton_S_data_PSTAR")
+    function get_S(E_MeV,rho,comp_vector,file_name="data/proton_S_data_topas")
         #Gives stopping power based on data from file for 12 materials
         #
         #- E is energy in MeV

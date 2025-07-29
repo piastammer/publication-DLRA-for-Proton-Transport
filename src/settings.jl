@@ -309,7 +309,6 @@ mutable struct Settings
             z = z.+dz/2;
             zMid = z[1:(end-1)].+0.5*dz
         end
-        end
 
         # time settings
         dE = cfl*min(dx,dy,dz)

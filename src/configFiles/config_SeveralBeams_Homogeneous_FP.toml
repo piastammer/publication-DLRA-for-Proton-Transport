@@ -1,0 +1,25 @@
+[physics]
+particle = "Protons"
+problem = "TwoBeams"
+model = "FP" 
+OmegaMin = 180
+eKin = 50
+
+[numerics]
+nx = 23
+ny = 43
+nz = 43
+nMoments = 19
+order = 2
+rank = 100
+maxRank = 100
+solverName = "Tracer_rankAdaptiveInEnergy_FP" 
+tracerFileName = "eDep_TwoBeams_FP_90"
+cfl = 50
+tolerance = 0.01
+
+[computation]
+trace = false
+disableGPU = false
+
+

@@ -13,18 +13,13 @@ using CUDA.CUSPARSE
 using Base.Threads
 using Interpolations
 using TimerOutputs
-#using QuasiMonteCarlo
 using Random, Distributions
-using Tullio
-#using Plots; pythonplot()
-@pyimport matplotlib.animation as anim
 
 include("CSD.jl")
 include("PNSystem.jl")
 include("quadratures/Quadrature.jl")
 include("utils.jl")
 include("stencils.jl")
-include("cudaKernels.jl")
 
 mutable struct SolverGPU{T<:AbstractFloat}
     # spatial grid of cell interfaces
@@ -192,12 +187,6 @@ mutable struct SolverGPU{T<:AbstractFloat}
     end
 end
 
-py"""
-import numpy
-def qr(A):
-    return numpy.linalg.qr(A)
-"""
-
 function SolveTracer_rankAdaptiveInEnergy(obj::SolverGPU{T}, model::String="Boltzmann", trace::Bool=false) where {T<:AbstractFloat}
     # Get rank
     r=Int(floor(obj.settings.r / 2));
@@ -266,11 +255,8 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverGPU{T}, model::String="Bolt
     dose = CuArray(obj.dose);
  
     @timeit to "Setup upwind stencil" begin
-        if obj.settings.non_uniform 
-            stencil = UpwindStencil3DCUDA_nonuniform(obj.settings, order)
-        else
-            stencil = UpwindStencil3DCUDA(obj.settings, order)
-        end
+        stencil = UpwindStencil3DCUDA(obj.settings, order)
+
         D⁺₁ = stencil.D⁺₁
         D⁺₂ = stencil.D⁺₂
         D⁺₃ = stencil.D⁺₃
@@ -1002,253 +988,11 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverGPU{T}, model::String="B
  end
 
 function RunTracer_UniDirectional(obj::SolverGPU{T}, model::String, trace::Bool) where {T<:AbstractFloat}
+    ## this function has been severely reduced since we only load precomputed tracer results in this version
     nE = 1
     E_tracer = []
     tracerDirs = [obj.settings.Omega1 obj.settings.Omega2 obj.settings.Omega3]
     nB = size(tracerDirs,1)
-
-    #use cell end and midpoints for rays
-    x = collect(range(obj.settings.a,obj.settings.b,obj.settings.sizeOfTracerCT[1]));
-    y = collect(range(obj.settings.c,obj.settings.d,obj.settings.sizeOfTracerCT[2]));
-    z = collect(range(obj.settings.e,obj.settings.f,obj.settings.sizeOfTracerCT[3]));
-    
-    out_start =  open("tracer/start.bin","w")
-    out_end =  open("tracer/end.bin","w")
-    out_weights =  open("tracer/weights.bin","w")
-    nRays = zeros(nB)
-    use_grid = true
-    random = false
-    trace_toMids = false
-
-    for b=1:nB
-        #assume beams enter the box through a unique plane and find that plane
-        face, μs, σs = get_beamAtEntry([obj.settings.a,obj.settings.c,obj.settings.e], [obj.settings.b,obj.settings.d,obj.settings.f], [obj.settings.x0[b] ,obj.settings.y0[b],obj.settings.z0[b]].- tracerDirs[b,:], tracerDirs[b,:],[obj.settings.sigmaX,obj.settings.sigmaY,obj.settings.sigmaZ])
-        println(face)
-        if face == "Left"
-            if use_grid
-                pos_yz = combination_vectors(y[2:end-1],z[2:end-1])
-                pos_xyz = zeros(size(pos_yz,1),3)
-                nRays[b] = size(pos_yz,1)
-                pos_xyz[:,2] = pos_yz[:,1]
-                pos_xyz[:,3] = pos_yz[:,2]
-                #μs = [obj.settings.y0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_yz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_yz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_yz,2))
-                nRays[b] = size(pos_yz,2)
-                pos_xyz[1:2,:] = pos_yz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.b .* tracerDirs[b,:] 
-        elseif face == "Bottom"
-            if use_grid
-                pos_xz = combination_vectors(x[2:end-1],z[2:end-1])
-                pos_xyz = zeros(size(pos_xz,1),3)
-                nRays[b] = size(pos_xz,1)
-                pos_xyz[:,1] = pos_xz[:,1]
-                pos_xyz[:,3] = pos_xz[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xz,2))
-                nRays[b] = size(pos_xz,2)
-                pos_xyz[1:2,:] = pos_xz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.d .* tracerDirs[b,:] 
-        elseif face == "Front"
-            if use_grid
-                pos_xy = combination_vectors(x[2:end-1],y[2:end-1])
-                pos_xyz = zeros(size(pos_xy,1),3)
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xy')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if      #reduce number of rays to trace
-                μs[1] .- 3*σs[1] ≤ pos_xyz[1, i] ≤ μs[1] .+ 3*σs[1] &&
-                μs[2] .- 3*σs[2] ≤ pos_xyz[2, i] ≤ μs[2] .+ 3*σs[2] ]
-                x_start = pos_xyz[:,valid_indices]
-                pos_w = pos_w[valid_indices]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-                nRays[b] = size(x_start,2)
-            elseif random
-                μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                Random.seed!(123)
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_xy = rand(pdf_rays,5000)' 
-                pos_xyz = zeros(size(pos_xy,1),3)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-                pos_w = ones(length(pos_xyz))
-                pos_xyz = pos_xyz[:, valid_indices]
-                nRays[b] = size(pos_xyz,2)
-                x_start = pos_xyz .- tracerDirs[b,:]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-            elseif trace_toMids
-                allcombinations(v...) = vec(collect(Iterators.product(v...)))
-                xtmp = allcombinations(x,y,z)
-                x_end = hcat(first.(xtmp), getfield.(xtmp,2),last.(xtmp))
-                x_start = x_end .- 10 .* tracerDirs[b,:]' 
-                pos_xyz =  rotate_xyz_to_bev(tracerDirs[b,:])*x_start'
-                pos_end = rotate_xyz_to_bev(tracerDirs[b,:])*x_end'
-                x0 = rotate_xyz_to_bev(tracerDirs[b,:])*[obj.settings.x0[b],obj.settings.y0[b],obj.settings.z0[b]]
-                μs = [x0[1],x0[2]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_w = pdf(pdf_rays,pos_xyz[1:2,:])
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                μs[1] .- 3*σs[1] ≤ pos_xyz[1, i] ≤ μs[1] .+ 3*σs[1] &&
-                μs[2] .- 3*σs[2] ≤ pos_xyz[2, i] ≤ μs[2] .+ 3*σs[2] ]#&&
-                #pos_end[3,i] ≤ 1.2*0.0022*(obj.settings.eMax-obj.settings.eRest)^1.77] # also include something here to filter out cells clearly behind range
-
-                x_start = x_start[valid_indices,:]'
-                x_end = x_end[valid_indices,:]'
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(x_start,2)
-            else
-               # pos_xy, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                x = collect(range(obj.settings.x0[b] .- 3*obj.settings.sigmaX,obj.settings.x0[b] .+ 3*obj.settings.sigmaX,20));
-                y = collect(range(obj.settings.y0[b] .- 3*obj.settings.sigmaY,obj.settings.y0[b] .+ 3*obj.settings.sigmaY,20));
-                pos_xy = combination_vectors(x,y)
-                pos_xyz = zeros(size(pos_xy,1),3)
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz'
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])
-                pos_w = pdf(pdf_rays,pos_xy')'
-                pos_w = pos_w[valid_indices]'
-                x_start = pos_xyz .- tracerDirs[b,:]
-                x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-            end
-        elseif face == "Right"
-            if use_grid
-                pos_yz = combination_vectors(y[2:end-1],z[2:end-1])
-                pos_xyz = ones(size(pos_yz,1),3)*obj.settings.b
-                nRays[b] = size(pos_yz,1)
-                pos_xyz[:,2] = pos_yz[:,1]
-                pos_xyz[:,3] = pos_yz[:,2]
-                #μs = [obj.settings.y0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_yz')' # pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_yz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_yz,2))
-                nRays[b] = size(pos_yz,2)
-                pos_xyz[1:2,:] = pos_yz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.b .* tracerDirs[b,:]
-        elseif face == "Top"
-            if use_grid
-                pos_xz = combination_vectors(x[2:end-1],z[2:end-1])
-                pos_xyz = ones(size(pos_xz,1),3)*obj.settings.d
-                nRays[b] = size(pos_xz,1)
-                pos_xyz[:,1] = pos_xz[:,1]
-                pos_xyz[:,3] = pos_xz[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.z0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xz')'# pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xz, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xz,2))
-                pos_xyz[1:2,:] = pos_xz
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.e ≤ pos_xyz[3, i] ≤ obj.settings.f]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.d .* tracerDirs[b,:] 
-        elseif face == "Back"
-            if use_grid
-                pos_xy = combination_vectors(x[2:end-1],y[2:end-1])
-                pos_xyz = ones(size(pos_xy,1),3)*obj.settings.f
-                nRays[b] = size(pos_xy,1)
-                pos_xyz[:,1] = pos_xy[:,1]
-                pos_xyz[:,2] = pos_xy[:,2]
-                #μs = [obj.settings.x0[b],obj.settings.y0[b]]; σs = [obj.settings.sigmaX,obj.settings.sigmaY]; 
-                pdf_rays = Product([Normal(μ,σ) for (μ,σ) in zip(μs,σs)])#MvNormal(μs, σs)
-                pos_w = pdf(pdf_rays,pos_xy')' # pdf(pdf_rays,pos_xyz')
-                pos_xyz = pos_xyz'
-            else
-                pos_xy, pos_w = quad_generalGauss2D(μs, σs.*I(2),20)
-                pos_xyz = zeros(3,size(pos_xy,2))
-                nRays[b] = size(pos_xy,2)
-                pos_xyz[1:2,:] = pos_xy
-                pos_xyz = rotate_bev_to_xyz(tracerDirs[b,:])*pos_xyz
-                valid_indices = [i for i in 1:size(pos_xyz, 2) if 
-                 obj.settings.a ≤ pos_xyz[1, i] ≤ obj.settings.b &&
-                 obj.settings.c ≤ pos_xyz[2, i] ≤ obj.settings.d]
-
-                pos_xyz = pos_xyz[:, valid_indices]
-                pos_w = pos_w[valid_indices]
-                nRays[b] = size(pos_xyz,2)
-            end
-            x_start = pos_xyz .- tracerDirs[b,:]
-            x_end = x_start .+ obj.settings.f .* tracerDirs[b,:] 
-        end
-        println("Tracing $(nRays[b]) rays for beam $b")
-        
-        #write to binary file
-        write(out_start,x_start[:])
-        write(out_end,x_end[:])
-        write(out_weights,pos_w[:])
-    end 
-    close(out_start)
-    close(out_end)
-    close(out_weights)
-    x = nothing
-    y = nothing
-    z = nothing
 
     if trace
         #Update scattering coefficients
@@ -1259,11 +1003,6 @@ function RunTracer_UniDirectional(obj::SolverGPU{T}, model::String, trace::Bool)
             _ = computeOutscattering(obj.csd,T.(E.+obj.settings.eRest),T.(obj.settings.OmegaMin),"gaussIntTracer")
        end
     end
-    #clear variables
-    pos_xyz = nothing
-    pos_xz = nothing
-    x_end = nothing
-    x_start = nothing
 
     @timeit to "Ray-tracer" begin
 
@@ -1271,11 +1010,11 @@ function RunTracer_UniDirectional(obj::SolverGPU{T}, model::String, trace::Bool)
             println("Tracer not included in this version, load existing tracer result file from \"src/tracer_results\"!")
         end
 
-        if isfile("tracer/results/$(obj.settings.tracerFileName).bin")
-            phiTracer = Array{Float64}(undef,Int.(stat("tracer/results/$(obj.settings.tracerFileName).bin").size/8))
-            io_phi = open("tracer/results/$(obj.settings.tracerFileName).bin", "r")
+        if isfile("tracer_results/$(obj.settings.tracerFileName).bin")
+            phiTracer = Array{Float64}(undef,Int.(stat("tracer_results/$(obj.settings.tracerFileName).bin").size/8))
+            io_phi = open("tracer_results/$(obj.settings.tracerFileName).bin", "r")
         else
-            error("no file tracer/results/$(obj.settings.tracerFileName).bin detected");
+            error("no file tracer_results/$(obj.settings.tracerFileName).bin detected");
         end
 
         # set up energy grid

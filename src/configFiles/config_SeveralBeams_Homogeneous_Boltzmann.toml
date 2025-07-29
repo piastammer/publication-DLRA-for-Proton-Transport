@@ -1,0 +1,25 @@
+[physics]
+particle = "Protons"
+problem = "TwoBeams"
+model = "Boltzmann" 
+OmegaMin = 0
+eKin = 50
+
+[numerics]
+nx = 23
+ny = 43
+nz = 43
+nMoments = 75
+order = 2
+rank = 100
+maxRank = 100
+solverName = "Tracer_rankAdaptiveInEnergy" 
+tracerFileName = "eDep_TwoBeams_Boltzmann_90"
+cfl = 50
+tolerance = 0.01
+
+[computation]
+trace = false
+disableGPU = false
+
+

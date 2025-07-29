@@ -1,0 +1,25 @@
+[physics]
+particle = "Protons"
+problem = "matfromCT"
+model = "FP" 
+OmegaMin = 180
+eKin = 80
+
+[numerics]
+nx = 83
+ny = 83
+nz = 283                                                                                                                                                                                                                                                                                                                                                                                                                                            
+nMoments  = 75
+order = 2
+rank = 100
+maxRank = 100
+solverName = "Tracer_rankAdaptiveInEnergy_FP" 
+tracerFileName = "FP_E80_BoxInsert_corrected"
+cfl = 20
+tolerance = 0.01
+
+[computation]
+trace = false
+disableGPU = false
+
+
