@@ -12,6 +12,6 @@ The code can be run through `ìnclude("src/main.jl")` or `ìnclude("src/mainPn.j
 
 ### Repository structure
 - `src` contains julia code implementing deterministic DLRA solver for collided part of equation
-- `src/tracer_results` contains precomputed uncollided flux from ray tracer for test cases from paper, due to githubs size limit of 100MB for individual files only coarse resolution results could be included at this moment. We are working on a solution for the larger result files for finer resolutions
+- `src/tracer_results` contains the uncollided flux precomputed with the ray tracer for all test cases in the paper, due to githubs size limit of 100MB for individual files only coarse resolution results could be included at this moment. We are working on a solution for the larger result files for finer resolutions
 - `src/data` contains stopping power data extracted from [TOPAS MC](https://www.topasmc.org/) or [PSTAR](https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html) for the 12 elements used for material composition
 - `topasMC` contains parameter files to compute Monte Carlo references used for comparison with [TOPAS MC](https://www.topasmc.org/) 
