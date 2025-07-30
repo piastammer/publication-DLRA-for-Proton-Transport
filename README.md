@@ -8,6 +8,6 @@ Source code to reproduce results from paper [add link]. Key components of the me
 - materials are represented using composite model from 12 base elements
 
 ### Repository structure
-- `src contains julia code implementing deterministic DLRA solver for collided part of equation
-- `src/tracer_results contains precomputed uncollided flux from ray tracer for test cases from paper, due to githubs size limit of 100MB for individual files only coarse resolution results could be included at this moment. We are working on a solution for the larger result files for finer resolutions
-- `topasMC contains parameter files to compute Monte Carlo references used for comparison
+- `src` contains julia code implementing deterministic DLRA solver for collided part of equation
+- `src/tracer_results` contains precomputed uncollided flux from ray tracer for test cases from paper, due to githubs size limit of 100MB for individual files only coarse resolution results could be included at this moment. We are working on a solution for the larger result files for finer resolutions
+- `topasMC` contains parameter files to compute Monte Carlo references used for comparison
