@@ -32,10 +32,10 @@ if testCase == "WB"
     doseMC = reshape(psi./normFact,numCells[1],numCells[2],numCells[3])
     doseMC = doseMC./sum(doseMC[:]).*beamEn
     
-    dosePn = load("output/dose_fullPn_nPN$(m_low).jld2")["dose"]./4^3
-    doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["dose"]./4^3
+    dosePn = load("output/dose_fullPn_nPN$(m_low)_Boltzmann_E90_res1mm.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
+    doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["dose"]./4^3 
     doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_Boltzmann_E90.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["energy"].-938.26
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
     en_high = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90.jld2")["energy"].-938.26
     rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
     rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
@@ -52,10 +52,10 @@ elseif testCase =="BI"
     doseMC = reshape(psi./normFact,numCells[1],numCells[2],numCells[3])
     doseMC = doseMC./sum(doseMC[:]).*beamEn
 
-    dosePn = load("output/dose_fullPn_nPN$(m_low).jld2")["dose"]./4^3
+    dosePn = load("output/dose_fullPn_nPN$(m_low)_Boltzmann_E80_res1mm_BoxInsert.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
     doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["dose"]./4^3
     doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["energy"].-938.26
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
     en_high = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["energy"].-938.26
     rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
     rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
@@ -72,10 +72,10 @@ elseif testCase == "TwoBeams"
     doseMC = reshape(psi./normFact,numCells[1],numCells[2],numCells[3])
     doseMC = doseMC./sum(doseMC[:]).*beamEn
 
-    dosePn = zeros(numCells_low[1],numCells_low[2],numCells_low[3])
+    dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP)_eDep_TwoBeams_Boltzmann_90.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
     doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["dose"]./4^3
     doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["energy"].-938.26
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
     en_high = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["energy"].-938.26
     rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
     rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
@@ -87,10 +87,10 @@ if FP
     if testCase == "WB"
         m_low_FP = 19
         m_high_FP = 75
-        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP)_FP_E90_res1mm_corrected.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
         doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["dose"]./4^3 
         doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_FP_E90_corrected.jld2")["dose"] 
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
         en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
         en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
         en_highNhighM_FP =load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
@@ -101,10 +101,10 @@ if FP
     elseif testCase =="BI"
         m_low_FP = 19
         m_high_FP = 75
-        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP)_FP_E80_BoxInsert_res1mm_corrected.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
         doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["dose"]./4^3 
         doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["dose"] 
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
         en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
         en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
         en_highNhighM_FP =load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
@@ -115,10 +115,10 @@ if FP
     elseif testCase == "TwoBeams"
         m_low_FP = 19
         m_high_FP = 75
-        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP)_eDep_TwoBeams_FP_90.jld2")["dose"]./4^3 #has to be adjusted to different grid sizes (since we plot energy dep. per cell)
         doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["dose"]./4^3
         doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["dose"]
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26 #deduct rest energy to get kinetic
         en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
         en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
         en_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
@@ -262,6 +262,7 @@ savefig("JCP/LatCut_PnvsDLRA_$testCase.png")
 # #depth
 fig = figure("Dose, MC vs DLRA vs Pn ϑ= 0.01 lat. cuts",dpi=500)
 ax = gca()
+#average btw two middle cells to get line exactly on material boundary and be able to compare on diff. grids (for heterogeneous)
 ax.plot(zMid_MC[1:end],(doseMC[idxX_MC,idxY_MC,1:end]+doseMC[idxX_MC,idxY_MC+1,1:end])./2,linestyle="solid", label="Monte Carlo",linewidth=2, alpha=1.0,color=mycolors[1])
 ax.plot(zMid_DLRA,(doseDLRA_high[idxX_DLRA,idxY_DLRA,:]+doseDLRA_high[idxX_DLRA,idxY_DLRA+1,:])./2,linestyle="dashed", label="DLRA, nPn=$m_high, dx=0.25mm",linewidth=2, alpha=1.0,color=mycolors[2])
 ax.plot(zMid_low_DLRA,(doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA,:]+doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA-1,:])./2,linestyle="dotted", label="DLRA, nPn=$m_low, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[3])
@@ -311,6 +312,7 @@ if FP
     #depth
     fig = figure("Dose, MC vs DLRA vs Pn ϑ= 0.01 lat. cuts, FP",dpi=500)
     ax = gca()
+    #average btw two middle cells to get line exactly on material boundary and be able to compare on diff. grids (for heterogeneous)
     ax.plot(zMid_MC[1:end-1],(doseMC[idxX_MC,idxY_MC,2:end]+doseMC[idxX_MC,idxY_MC+1,2:end])./2,linestyle="solid", label="Monte Carlo",linewidth=2, alpha=1.0,color=mycolors[1])
     ax.plot(zMid_DLRA,(doseDLRA_high_FP[idxX_DLRA,idxY_DLRA,:]+doseDLRA_high_FP[idxX_DLRA,idxY_DLRA+1,:])./2,linestyle="dashed", label="DLRA, nPn=$m_high_FP, dx=0.25mm",linewidth=2, alpha=1.0,color=mycolors[2])
     ax.plot(zMid_low_DLRA,(doseDLRA_low_FP[idxX_low_DLRA,idxY_low_DLRA,:]+doseDLRA_low_FP[idxX_low_DLRA,idxY_low_DLRA-1,:])./2,linestyle="dotted", label="DLRA, nPn=$m_low_FP, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[3])
@@ -325,7 +327,7 @@ if FP
 end
 
 #SurfPlots
-fig = figure(figsize=(dims[2]+1.75,dims[3]))
+fig = figure(figsize=(dims[2]+1.75,dims[3])) #choose figsize so plot had correct aspect ratio despite color bar
 ax1 = gca()
 im1 = ax1.pcolormesh(YZ_MC',Z_MC',doseMC[idxX_MC,:,:]',vmin=0,vmax=maximum(doseMC[idxX_MC,:,:]),cmap="jet")
 cbar = plt.colorbar(im1,ax=ax1)

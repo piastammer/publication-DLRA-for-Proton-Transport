@@ -75,7 +75,7 @@ YZ = (s.yMid'.*ones(size(s.zMid)))'
 # outfiles = vtk_save(vtkfile)
 
 #uncomment to write out solution files
-# save("output/dose_fullPn_nPN$(s.nPN)_$file_name.jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e))
+# save("output/dose_fullPn_nPN$(s.nPN)_$(s.tracerFileName).jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e))
 
 # plot results
 fig, (ax1, ax2, ax3, ax4) = plt.subplots(2, 2, dpi=200);
