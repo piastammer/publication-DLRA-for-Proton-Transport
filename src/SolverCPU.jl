@@ -824,17 +824,9 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
              ################## L-step ##################
              L = W*S';
              L0 = L
-             if model == "FP"
-                for j=1:Nmat
-                    #L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
-                    implicit_update!(T.(L),T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
-                end
-            else
-                 for j=1:Nmat
-                    L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
-                    #implicit_update!(T.(L),T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
-                end
-            end
+             for j=1:Nmat
+                L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
+             end
              W,S1,S2 = svd(L)
              S .= S2 * Diagonal(S1)
      
@@ -1139,14 +1131,9 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
              ################## L-step ##################
              L = W*S';
              L0 = L
-            #implicit L-step
-                for j=1:Nmat
-                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
-                end
-            #explicit L-step
-                #  for j=1:Nmat
-                #     L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
-                # end
+             for j=1:Nmat
+                L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
+             end
              W,S1,S2 = svd(L)
              S .= S2 * Diagonal(S1)
     
