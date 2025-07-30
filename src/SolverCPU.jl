@@ -549,7 +549,7 @@ function SolveTracer_fullPnInEnergy_FP(obj::SolverCPU{T}, model::String="Boltzma
             
             next!(prog) # update progress bar
         end
-    #end
+    end
 
     # return solution and dose
     return dose,dose_coll
@@ -603,6 +603,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
     
     qReduced = T.(obj.Q.pointsxyz[idxBeam,:])
     MReduced = T.(obj.M[:,idxBeam])
+    M1 = MReduced[1,:]
     OReduced = T.(obj.O[idxBeam,:])
     nq = length(idxBeam);
 
@@ -626,8 +627,8 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
     # impose boundary condition
     X[obj.boundaryIdx,:] .= 0.0;
 
-    nEnergies = length(eTrafo);
-    dE = eTrafo[2]-eTrafo[1];
+    nEnergies = length(energy);
+    dE = energy[1] - energy[2]
     obj.settings.dE = dE
     densityVec = obj.densityVec
 
@@ -648,6 +649,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
 
     uOUnc = zeros(T,nx*ny*nz);
     dose_coll = zeros(T,nx*ny*nz);
+    dose = zeros(T,nx*ny*nz);
 
     @timeit to "Setup upwind stencil" begin
         stencil = UpwindStencil3D(obj.settings, order)
@@ -696,7 +698,8 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
     Sinv = zeros(T,nPsi)
     wMat = T.(matComp(obj.settings.densityHU[:]).*obj.settings.density[:]'./100);
     Nmat = size(wMat,1)
-    
+    e1 = zeros(T,N); e1[1] = 1.0; 
+
     #loop over energy
     println("Starting energy loop")
      @timeit to "DLRA" begin
@@ -812,7 +815,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
                  S .= rk4(dE, FSz, S)
  
                  # truncate
-                 X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+                 X, S, W = truncate!(obj,T.(X),T.(S),T.(W));
                  r = size(S,1)
              end
             
@@ -823,13 +826,13 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
              L0 = L
              if model == "FP"
                 for j=1:Nmat
-                    #L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
-                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                    #L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
+                    implicit_update!(T.(L),T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
                 end
             else
                  for j=1:Nmat
-                    L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
-                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                    L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
+                    #implicit_update!(T.(L),T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
                 end
             end
              W,S1,S2 = svd(L)
@@ -841,7 +844,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
              X[obj.boundaryIdx,:] .= 0.0;
              K = X*S;
              for j=1:Nmat
-                K += dE * wMat[j,:].*SinvEnd .* psi * MReduced'*(Dvec[:,j].*W); 
+                K += dE * wMat[j,:].*Sinv .* psi * MReduced'*(Dvec[:,j].*W); 
              end
              K[obj.boundaryIdx,:] .= 0.0; # update includes the boundary cell, which should not generate a source, since boundary is ghost cell. Therefore, set solution at boundary to zero
  
@@ -850,7 +853,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
              ################## L-step ##################
              L = W*S';
              for j=1:Nmat
-                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*SinvEnd.*psi))'; 
+                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*Sinv.*psi))'; 
              end
              Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
  
@@ -859,14 +862,14 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
              ################## S-step ##################
              S = MUp*S*(NUp')
              for j=1:Nmat
-                S += dE*(X'*(wMat[j,:].*SinvEnd.*psi))*MReduced'*(Dvec[:,j].*W);
+                S += dE*(X'*(wMat[j,:].*Sinv.*psi))*MReduced'*(Dvec[:,j].*W);
              end
 
              ############## Dose Computation ##############
              dose .+= dEGrid * (X*S*(W'*e1)+psi*M1)* ∫Y₀⁰dΩ #add density to compute dose instead of energy dep.
              dose_coll .+= dEGrid *(X*S*(W'*e1) )* ∫Y₀⁰dΩ 
              # truncate
-             X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+             X, S, W = truncate!(obj,T.(X),T.(S),T.(W));
              r = size(S,1)
              rVec[1,n] = energy[n];
              rVec[2,n] = r;
@@ -883,7 +886,7 @@ function SolveTracer_rankAdaptiveInEnergy(obj::SolverCPU{T}, model::String="Bolt
  
      U,Sigma,V = svd(S);
      # return solution and dose
-     return X*U, 0.5*sqrt(obj.gamma[1])*Sigma, obj.O*W*V,W*V,dose,dose_coll,rVec,psi;
+     return dose,dose_coll
  end
 
 function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="Boltzmann", trace::Bool=false) where {T<:AbstractFloat}
@@ -917,6 +920,7 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
     
     qReduced = T.(obj.Q.pointsxyz[idxBeam,:])
     MReduced = T.(obj.M[:,idxBeam])
+    M1 = MReduced[1,:]
     OReduced = T.(obj.O[idxBeam,:])
     nq = length(idxBeam);
    
@@ -957,9 +961,10 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
  
     counterPNG = 0;
  
-    dose_coll = CUDA.zeros(T,nx*ny*nz);
-    dose = CuArray(obj.dose);
- 
+    dose_coll = zeros(T,nx*ny*nz);
+    dose = zeros(T,nx*ny*nz);
+    e1 = zeros(T,N); e1[1] = 1.0;  
+    
     @timeit to "Setup upwind stencil" begin
         stencil = UpwindStencil3D(obj.settings, order)
 
@@ -1125,7 +1130,7 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
                  S .= rk4(dE, FSz, S)
  
                  # truncate
-                 X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+                 X, S, W = truncate!(obj,T.(X),T.(S),T.(W));
                  r = size(S,1)
              end
             
@@ -1136,11 +1141,11 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
              L0 = L
             #implicit L-step
                 for j=1:Nmat
-                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*SinvEnd.*X), dE)
+                    implicit_update!(L,T.(Dvec[:,j].-sigmaS[1,j]), X'*(wMat[j,:].*Sinv.*X), dE)
                 end
             #explicit L-step
                 #  for j=1:Nmat
-                #     L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*SinvEnd.*X));
+                #     L += dE*(Dvec[:,j].-sigmaS[1,j]).*(L0*X'*(wMat[j,:].*Sinv.*X));
                 # end
              W,S1,S2 = svd(L)
              S .= S2 * Diagonal(S1)
@@ -1151,7 +1156,7 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
             X[obj.boundaryIdx,:] .= 0.0;
              K = X*S;
              for j=1:Nmat
-                K += dE * wMat[j,:].*SinvEnd .* psi * MReduced'*(Dvec[:,j].*W);
+                K += dE * wMat[j,:].*Sinv .* psi * MReduced'*(Dvec[:,j].*W);
              end
              K[obj.boundaryIdx,:] .= 0.0; # update includes the boundary cell, which should not generate a source, since boundary is ghost cell. Therefore, set solution at boundary to zero
  
@@ -1160,7 +1165,7 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
              ################## L-step ##################
              L = W*S';
              for j=1:Nmat
-                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*SinvEnd.*psi))';
+                L += dE*Dvec[:,j].*MReduced*(X'*(wMat[j,:].*Sinv.*psi))';
              end
              Wtmp,_,_ = svd([W L]); NUp = Wtmp'*W;
  
@@ -1169,14 +1174,14 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
              ################## S-step ##################
              S = MUp*S*(NUp')
              for j=1:Nmat
-                S += dE*(X'*(wMat[j,:].*SinvEnd.*psi))*MReduced'*(Dvec[:,j].*W);
+                S += dE*(X'*(wMat[j,:].*Sinv.*psi))*MReduced'*(Dvec[:,j].*W);
              end
 
              ############## Dose Computation ##############
              dose .+= dEGrid * (X*S*(W'*e1)+psi*M1)* ∫Y₀⁰dΩ #add density to compute dose instead of energy dep.
              dose_coll .+= dEGrid *(X*S*(W'*e1) )* ∫Y₀⁰dΩ 
              # truncate
-             X, S, W = truncate(obj,T.(X),T.(S),T.(W));
+             X, S, W = truncate!(obj,T.(X),T.(S),T.(W));
              r = size(S,1)
              rVec[1,n] = energy[n];
              rVec[2,n] = r;
@@ -1191,7 +1196,7 @@ function SolveTracer_rankAdaptiveInEnergy_FP(obj::SolverCPU{T}, model::String="B
  
      U,Sigma,V = svd(S);
      # return solution and dose
-     return X*U, 0.5*sqrt(obj.gamma[1])*Sigma, obj.O*W*V,W*V,dose,dose_coll,rVec,psi;
+     return dose,dose_coll
  end
 
 function RunTracer_UniDirectional(obj::SolverCPU{T}, model::String, trace::Bool) where {T<:AbstractFloat}
@@ -1269,5 +1274,4 @@ function truncate!(obj::SolverCPU{T},X::Array{T,2},S::Array{T,2},W::Array{T,2}) 
 
     # return rank
     return X*U[:, 1:rmax], diagm(D[1:rmax]), W*V[:, 1:rmax];
-end
 end

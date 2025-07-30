@@ -6,7 +6,6 @@ include("utils.jl")
 ticker = pyimport("matplotlib.ticker")
 
 testCase = "WB"
-non_uniform = false
 if testCase == "TwoBeams"
     dims = [2,4,4]
     numCells = [80,160,160]
@@ -21,41 +20,30 @@ else
     FP = true
 end
 
+#load results 
 if testCase == "WB"
+    m_low = 75
+    m_high = 115
     psi = Array{Float64}(undef,Int.(stat("../../topas/examples/Pia/RefCalcMC_protons_Edep_WB90MeV.bin").size/8))
     io_psi = open("../../topas/examples/Pia/RefCalcMC_protons_Edep_WB90MeV.bin", "r")
-    # psi = Array{Float64}(undef,Int.(stat("../../topas/examples/Pia/RefCalcMC_protons_Edep_WB90MeV_withLocalDep.bin").size/8))
-    # io_psi = open("../../topas/examples/Pia/RefCalcMC_protons_Edep_WB90MeV_withLocalDep.bin", "r")
     read!(io_psi,psi);
     normFact = 1e8
     beamEn = 90
     doseMC = reshape(psi./normFact,numCells[1],numCells[2],numCells[3])
     doseMC = doseMC./sum(doseMC[:]).*beamEn
     
-    dosePn = load("output/dose_fullPn_nPN75_configFullPn.jld2")["dose"]./4^3
-    doseDLRA_low = load("output/dose_nPN75_tol0.01_Boltzmann_E90_res1mm_configTestEnergies_90.jld2")["dose"]./4^3
-    doseDLRA_high = load("output/dose_nPN111_tol0.01_Boltzmann_E90_configTestEnergies_90.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E90_res1mm.jld2")["energy"].-938.26
-    en_high = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E90.jld2")["energy"].-938.26
-    rank_lowNlowM = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
-    rank_lowNhighM = load("output/rankInEnergy_nPN113_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
-    rank_highNlowM = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E90.jld2")["rank"]
-    rank_highNhighM = load("output/rankInEnergy_nPN113_tol0.01_Boltzmann_E90.jld2")["rank"]
-    if non_uniform
-        doseDLRA_low = load("output/dose_nPN75_tol0.01_Boltzmann_E90_res1mm_configTestEnergies_90_nonUniform.jld2")["dose"]
-        doseDLRA_high = load("output/dose_nPN113_tol0.01_Boltzmann_E90_configTestEnergies_90_nonUniform.jld2")["dose"]
-
-        xMid_DLRA = load("output/dose_nPN113_tol0.01_Boltzmann_E90_configTestEnergies_90_nonUniform.jld2")["x"]
-        yMid_DLRA = load("output/dose_nPN113_tol0.01_Boltzmann_E90_configTestEnergies_90_nonUniform.jld2")["y"]
-        zMid_DLRA = load("output/dose_nPN113_tol0.01_Boltzmann_E90_configTestEnergies_90_nonUniform.jld2")["z"]
-
-        xMid_low_DLRA = load("output/dose_nPN75_tol0.01_Boltzmann_E90_res1mm_configTestEnergies_90_nonUniform.jld2")["x"]
-        yMid_low_DLRA = load("output/dose_nPN75_tol0.01_Boltzmann_E90_res1mm_configTestEnergies_90_nonUniform.jld2")["y"]
-        zMid_low_DLRA = load("output/dose_nPN75_tol0.01_Boltzmann_E90_res1mm_configTestEnergies_90_nonUniform.jld2")["z"]
-    end
+    dosePn = load("output/dose_fullPn_nPN$(m_low).jld2")["dose"]./4^3
+    doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["dose"]./4^3
+    doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_Boltzmann_E90.jld2")["dose"]
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["energy"].-938.26
+    en_high = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90.jld2")["energy"].-938.26
+    rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
+    rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_Boltzmann_E90_res1mm.jld2")["rank"]
+    rank_highNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E90.jld2")["rank"]
+    rank_highNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_Boltzmann_E90.jld2")["rank"]
+elseif testCase =="BI"
     m_low = 75
     m_high = 115
-elseif testCase =="BI"
     psi = Array{Float64}(undef,Int.(stat("../../topas/examples/Pia/RefCalcMC_protons_Edep_BoxInsert_80MeV.bin").size/8))
     io_psi = open("../../topas/examples/Pia/RefCalcMC_protons_Edep_BoxInsert_80MeV.bin", "r")
     read!(io_psi,psi);
@@ -64,18 +52,18 @@ elseif testCase =="BI"
     doseMC = reshape(psi./normFact,numCells[1],numCells[2],numCells[3])
     doseMC = doseMC./sum(doseMC[:]).*beamEn
 
-    dosePn = load("output/dose_fullPn_nPN75_configFullPn_BoxInsert.jld2")["dose"]./4^3
-    doseDLRA_low = load("output/dose_nPN75_tol0.01_Boltzmann_E80_res1mm_BoxInsert_configEnergyStepping.jld2")["dose"]./4^3
-    doseDLRA_high = load("output/dose_nPN111_tol0.01_eDep_BoxInsert_Boltzmann_highres_configEnergyStepping.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["energy"].-938.26
-    en_high = load("output/rankInEnergy_nPN75_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["energy"].-938.26
-    rank_lowNlowM = load("output/rankInEnergy_nPN75_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
-    rank_lowNhighM = load("output/rankInEnergy_nPN113_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
-    rank_highNlowM = load("output/rankInEnergy_nPN75_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["rank"]
-    rank_highNhighM = load("output/rankInEnergy_nPN113_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["rank"]
+    dosePn = load("output/dose_fullPn_nPN$(m_low).jld2")["dose"]./4^3
+    doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["dose"]./4^3
+    doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["dose"]
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["energy"].-938.26
+    en_high = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["energy"].-938.26
+    rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
+    rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_Boltzmann_E80_res1mm_BoxInsert.jld2")["rank"]
+    rank_highNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["rank"]
+    rank_highNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_BoxInsert_Boltzmann_highres.jld2")["rank"]
+elseif testCase == "TwoBeams"
     m_low = 75
     m_high = 115
-elseif testCase == "TwoBeams"
     psi = Array{Float64}(undef,Int.(stat("../../topas/examples/Pia/RefCalcMC_protons_Edep_twoBeams_90deg.bin").size/8))
     io_psi = open("../../topas/examples/Pia/RefCalcMC_protons_Edep_twoBeams_90deg.bin", "r")
     read!(io_psi,psi);
@@ -85,68 +73,60 @@ elseif testCase == "TwoBeams"
     doseMC = doseMC./sum(doseMC[:]).*beamEn
 
     dosePn = zeros(numCells_low[1],numCells_low[2],numCells_low[3])
-    doseDLRA_low = load("output/dose_nPN75_tol0.01_eDep_TwoBeams_Boltzmann_90_configSeveralBeams.jld2")["dose"]./4^3
-    doseDLRA_high = load("output/dose_nPN105_tol0.01_eDep_TwoBeams_Boltzmann_90_highres_configSeveralBeams.jld2")["dose"]
-    en_low = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["energy"].-938.26
-    en_high = load("output/rankInEnergy_nPN115_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["energy"].-938.26
-    rank_lowNlowM = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
-    rank_lowNhighM = load("output/rankInEnergy_nPN115_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
-    rank_highNlowM = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["rank"]
-    rank_highNhighM = load("output/rankInEnergy_nPN105_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["rank"]
-    m_low = 75
-    m_high = 115
+    doseDLRA_low = load("output/dose_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["dose"]./4^3
+    doseDLRA_high = load("output/dose_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["dose"]
+    en_low = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["energy"].-938.26
+    en_high = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["energy"].-938.26
+    rank_lowNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
+    rank_lowNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90.jld2")["rank"]
+    rank_highNlowM = load("output/rankInEnergy_nPN$(m_low)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["rank"]
+    rank_highNhighM = load("output/rankInEnergy_nPN$(m_high)_tol0.01_eDep_TwoBeams_Boltzmann_90_highres.jld2")["rank"]
 end
 
 if FP
     if testCase == "WB"
-        dosePn_FP = load("output/dose_fullPn_nPN19_configFullPn_FP.jld2")["dose"]./4^3 
-        # doseDLRA_low_FP = load("output/dose_nPN75_tol0.01_FP_E90_res1mm_configTestEnergies_90_FP.jld2")["dose"]./4^3 
-        # doseDLRA_high_FP = load("output/dose_nPN115_tol0.01_FP_E90_configTestEnergies_90_FP.jld2")["dose"] 
-        #with correction
-        doseDLRA_low_FP = load("output/dose_nPN19_tol0.01_FP_E90_res1mm_corrected_configTestEnergies_90_FP.jld2")["dose"]./4^3 
-        doseDLRA_high_FP = load("output/dose_nPN75_tol0.01_FP_E90_corrected_configTestEnergies_90_FP.jld2")["dose"] 
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
-        en_lowNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
-        en_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
-        en_highNhighM_FP =load("output/rankInEnergy_nPN75_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
-        rank_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E90_res1mm_corrected.jld2")["rank"]
-        rank_lowNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E90_res1mm_corrected.jld2")["rank"]
-        rank_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E90_corrected.jld2")["rank"]
-        rank_highNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E90_corrected.jld2")["rank"]
         m_low_FP = 19
         m_high_FP = 75
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["dose"]./4^3 
+        doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_FP_E90_corrected.jld2")["dose"] 
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
+        en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["energy"].-938.26
+        en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
+        en_highNhighM_FP =load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_corrected.jld2")["energy"].-938.26
+        rank_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["rank"]
+        rank_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_res1mm_corrected.jld2")["rank"]
+        rank_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E90_corrected.jld2")["rank"]
+        rank_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E90_corrected.jld2")["rank"]
     elseif testCase =="BI"
-        dosePn_FP = load("output/dose_fullPn_nPN19_configFullPn_BoxInsert_FP.jld2")["dose"]./4^3 
-        # doseDLRA_low_FP = load("output/dose_nPN75_tol0.01_FP_E80_res1mm_BoxInsert_configEnergySteppingFP.jld2")["dose"]./4^3 
-        # doseDLRA_high_FP = load("output/dose_nPN115_tol0.01_eDep_BoxInsert_FP_highres_configEnergySteppingFP.jld2")["dose"] 
-        #with correction
-        doseDLRA_low_FP = load("output/dose_nPN19_tol0.01_FP_E80_BoxInsert_res1mm_corrected_configEnergySteppingFP.jld2")["dose"]./4^3 
-        doseDLRA_high_FP = load("output/dose_nPN75_tol0.01_FP_E80_BoxInsert_corrected_configEnergySteppingFP.jld2")["dose"] 
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
-        en_lowNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
-        en_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
-        en_highNhighM_FP =load("output/rankInEnergy_nPN75_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
-        rank_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["rank"]
-        rank_lowNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["rank"]
-        rank_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_FP_E80_BoxInsert_corrected.jld2")["rank"]
-        rank_highNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_FP_E80_BoxInsert_corrected.jld2")["rank"]
         m_low_FP = 19
         m_high_FP = 75
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["dose"]./4^3 
+        doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["dose"] 
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
+        en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["energy"].-938.26
+        en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
+        en_highNhighM_FP =load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["energy"].-938.26
+        rank_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["rank"]
+        rank_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_res1mm_corrected.jld2")["rank"]
+        rank_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["rank"]
+        rank_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_FP_E80_BoxInsert_corrected.jld2")["rank"]
     elseif testCase == "TwoBeams"
-        dosePn_FP = zeros(numCells_low[1],numCells_low[2],numCells_low[3])
-        doseDLRA_low_FP = load("output/dose_nPN19_tol0.01_eDep_TwoBeams_FP_90_configSeveralBeams.jld2")["dose"]./4^3
-        doseDLRA_high_FP = load("output/dose_nPN75_tol0.01_eDep_TwoBeams_FP_90_highres_configSeveralBeams.jld2")["dose"]
-        en_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
-        en_lowNhighM_FP = load("output/rankInEnergy_nPN19_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
-        en_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
-        en_highNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
-        en_highNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
-        rank_lowNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_eDep_TwoBeams_FP_90.jld2")["rank"]
-        rank_lowNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_FP_90.jld2")["rank"]
-        rank_highNlowM_FP = load("output/rankInEnergy_nPN19_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["rank"]
-        rank_highNhighM_FP = load("output/rankInEnergy_nPN75_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["rank"]
         m_low_FP = 19
         m_high_FP = 75
+        dosePn_FP = load("output/dose_fullPn_nPN$(m_low_FP).jld2")["dose"]./4^3 
+        doseDLRA_low_FP = load("output/dose_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["dose"]./4^3
+        doseDLRA_high_FP = load("output/dose_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["dose"]
+        en_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
+        en_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["energy"].-938.26
+        en_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
+        en_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
+        en_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["energy"].-938.26
+        rank_lowNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["rank"]
+        rank_lowNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90.jld2")["rank"]
+        rank_highNlowM_FP = load("output/rankInEnergy_nPN$(m_low_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["rank"]
+        rank_highNhighM_FP = load("output/rankInEnergy_nPN$(m_high_FP)_tol0.01_eDep_TwoBeams_FP_90_highres.jld2")["rank"]
     end
 end
 #define indices and grids for Plotting
@@ -154,15 +134,14 @@ xMid_MC = collect(range(0,dims[1],numCells[1]))
 yMid_MC = collect(range(0,dims[2],numCells[2]))
 zMid_MC = collect(range(0,dims[3],numCells[3]))
 
-if ~non_uniform 
-    xMid_DLRA = collect(range(0,dims[1],numCells[1]))
-    yMid_DLRA = collect(range(0,dims[2],numCells[2]))
-    zMid_DLRA = collect(range(0,dims[3],numCells[3]))
+xMid_DLRA = collect(range(0,dims[1],numCells[1]))
+yMid_DLRA = collect(range(0,dims[2],numCells[2]))
+zMid_DLRA = collect(range(0,dims[3],numCells[3]))
 
-    xMid_low_DLRA = collect(range(0,dims[1],numCells_low[1]))
-    yMid_low_DLRA = collect(range(0,dims[2],numCells_low[2]))
-    zMid_low_DLRA = collect(range(0,dims[3],numCells_low[3]))
-end
+xMid_low_DLRA = collect(range(0,dims[1],numCells_low[1]))
+yMid_low_DLRA = collect(range(0,dims[2],numCells_low[2]))
+zMid_low_DLRA = collect(range(0,dims[3],numCells_low[3]))
+
 
 xMid_low_Pn = collect(range(0,dims[1],numCells_low[1]))
 yMid_low_Pn = collect(range(0,dims[2],numCells_low[2]))
@@ -257,9 +236,6 @@ ax.plot(yMid_DLRA,doseDLRA_high[idxX_DLRA,:,idxZ_1_DLRA],linestyle="dashed", lab
 ax.plot(yMid_DLRA,doseDLRA_high[idxX_DLRA,:,idxZ_2_DLRA],linestyle="dashed", label="z=$(round(z2,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="o",markevery=4,color=mycolors[2])
 ax.plot(yMid_DLRA,doseDLRA_high[idxX_DLRA,:,idxZ_3_DLRA],linestyle="dashed", label="z=$(round(z3,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="x",markevery=4,color=mycolors[2])
 ax.tick_params("both",labelsize=10) 
-#ax.set_ylim(0,0.009)
-#ax.set_xlim(-0.25,2.25)
-#colorbar()
 plt.xlabel("y [cm]", fontsize=10)
 plt.ylabel("dep. energy [MeV]", fontsize=10)
 ax.legend(loc="upper left", fontsize=10)
@@ -276,9 +252,6 @@ ax.plot(yMid_low_DLRA,doseDLRA_low[idxX_low_DLRA,:,idxZ_low_DLRA_1],linestyle="d
 ax.plot(yMid_low_DLRA,doseDLRA_low[idxX_low_DLRA,:,idxZ_low_DLRA_2],linestyle="dashed", label="z=$(round(z2,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="o",markevery=1,color=mycolors[2])
 ax.plot(yMid_low_DLRA,doseDLRA_low[idxX_low_DLRA,:,idxZ_low_DLRA_3],linestyle="dashed", label="z=$(round(z3,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="x",markevery=1,color=mycolors[2])
 ax.tick_params("both",labelsize=10) 
-# ax.set_ylim(0,0.009)
-# ax.set_xlim(-0.25,2.25)
-#colorbar()
 plt.xlabel("y [cm]", fontsize=10)
 plt.ylabel("dep. energy [MeV]", fontsize=10)
 ax.legend(loc="upper left", fontsize=10)
@@ -294,9 +267,6 @@ ax.plot(zMid_DLRA,(doseDLRA_high[idxX_DLRA,idxY_DLRA,:]+doseDLRA_high[idxX_DLRA,
 ax.plot(zMid_low_DLRA,(doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA,:]+doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA-1,:])./2,linestyle="dotted", label="DLRA, nPn=$m_low, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[3])
 ax.plot(zMid_low_Pn,(dosePn[idxX_low_Pn,idxY_low_Pn,:]+dosePn[idxX_low_Pn,idxY_low_Pn-1,:])./2,linestyle="dashdot", label="full rank, nPn=$m_low, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[4])
 ax.tick_params("both",labelsize=10) 
-#ax.set_ylim(0,0.009)
-#ax.set_xlim(-0.25,2.25)
-#colorbar()
 plt.xlabel("z [cm]", fontsize=10)
 plt.ylabel("dep. energy [MeV]", fontsize=10)
 ax.legend(loc="upper left", fontsize=10)
@@ -314,9 +284,6 @@ if FP
     ax.plot(yMid_DLRA,doseDLRA_high_FP[idxX_DLRA,:,idxZ_2_DLRA],linestyle="dashed", label="z=$(round(z2,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="o",markevery=4,color=mycolors[2])
     ax.plot(yMid_DLRA,doseDLRA_high_FP[idxX_DLRA,:,idxZ_3_DLRA],linestyle="dashed", label="z=$(round(z3,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="x",markevery=4,color=mycolors[2])
     ax.tick_params("both",labelsize=10) 
-    #ax.set_ylim(0,0.009)
-    #ax.set_xlim(-0.25,2.25)
-    #colorbar()
     plt.xlabel("y [cm]", fontsize=10)
     plt.ylabel("dep. energy [MeV]", fontsize=10)
     ax.legend(loc="upper left", fontsize=10)
@@ -333,9 +300,6 @@ if FP
     ax.plot(yMid_low_DLRA,doseDLRA_low_FP[idxX_low_DLRA,:,idxZ_low_DLRA_2],linestyle="dashed", label="z=$(round(z2,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="o",markevery=1,color=mycolors[2])
     ax.plot(yMid_low_DLRA,doseDLRA_low_FP[idxX_low_DLRA,:,idxZ_low_DLRA_3],linestyle="dashed", label="z=$(round(z3,digits=2)), DLRA",linewidth=2, alpha=1.0,marker="x",markevery=1,color=mycolors[2])
     ax.tick_params("both",labelsize=10) 
-    # ax.set_ylim(0,0.009)
-    # ax.set_xlim(-0.25,2.25)
-    #colorbar()
     plt.xlabel("y [cm]", fontsize=10)
     plt.ylabel("dep. energy [MeV]", fontsize=10)
     ax.legend(loc="upper left", fontsize=10)
@@ -352,9 +316,6 @@ if FP
     ax.plot(zMid_low_DLRA,(doseDLRA_low_FP[idxX_low_DLRA,idxY_low_DLRA,:]+doseDLRA_low_FP[idxX_low_DLRA,idxY_low_DLRA-1,:])./2,linestyle="dotted", label="DLRA, nPn=$m_low_FP, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[3])
     ax.plot(zMid_low_Pn,(dosePn_FP[idxX_low_Pn,idxY_low_Pn,:]+dosePn_FP[idxX_low_Pn,idxY_low_Pn-1,:])./2,linestyle="dashdot", label="full rank, nPn=$m_low_FP, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[4])
     ax.tick_params("both",labelsize=10) 
-    #ax.set_ylim(0,0.009)
-    #ax.set_xlim(-0.25,2.25)
-    #colorbar()
     plt.xlabel("z [cm]", fontsize=10)
     plt.ylabel("dep. energy [MeV]", fontsize=10)
     ax.legend(loc="upper left", fontsize=10)
@@ -368,7 +329,6 @@ fig = figure(figsize=(dims[2]+1.75,dims[3]))
 ax1 = gca()
 im1 = ax1.pcolormesh(YZ_MC',Z_MC',doseMC[idxX_MC,:,:]',vmin=0,vmax=maximum(doseMC[idxX_MC,:,:]),cmap="jet")
 cbar = plt.colorbar(im1,ax=ax1)
-# cbar.ax.set_title("dep. energy [MeV]",fontsize=10)
 cbar.set_label("dep. energy [MeV]", rotation=270,labelpad=15)
 plt.xlabel("y [cm]", fontsize=10)
 plt.ylabel("z [cm]", fontsize=10)
@@ -385,9 +345,9 @@ end
  
 # Draw vertical and horizontal lines to indicate cuts
 x_cut = [xMid_MC[idxX_MC]]
-y_cut1 = [zMid_MC[idxZ_1_MC]]#,zMid_MC[idxZ_2_MC],zMid_MC[idxZ_3_MC]]
-y_cut2 = [zMid_MC[idxZ_2_MC]]#,zMid_MC[idxZ_2_MC],zMid_MC[idxZ_3_MC]]
-y_cut3 = [zMid_MC[idxZ_3_MC]]#,zMid_MC[idxZ_2_MC],zMid_MC[idxZ_3_MC]]
+y_cut1 = [zMid_MC[idxZ_1_MC]]
+y_cut2 = [zMid_MC[idxZ_2_MC]]
+y_cut3 = [zMid_MC[idxZ_3_MC]]
 
 if testCase != "TwoBeams"
     ax1.axvline(x=x_cut, color="white", linestyle="--", label="X Cut")
@@ -395,12 +355,6 @@ end
 ax1.axhline(y=y_cut1, color="white", linestyle="--", label="Y Cut1")
 ax1.axhline(y=y_cut2, color="white", linestyle="--", label="Y Cut2")
 ax1.axhline(y=y_cut3, color="white", linestyle="--", label="Y Cut3")
-
-# # Add labels next to the lines
-# ax1.text(x_cut .+ 0.2,-0.1, "y = $y", color="red", va="top",rotation=0)
-# ax1.text(-0.1, y_cut .+ 0.1, "z = $z1", color="red", ha="right",rotation=90)
-# ax1.text(-0.1, y_cut2 .+ 0.1, "z = $z2", color="red", ha="right",rotation=90)
-# ax1.text(-0.1, y_cut3 .+ 0.1, "z = $z3", color="red", ha="right",rotation=90)
 tight_layout()
 savefig("JCP/SurfPlot_MC_$testCase.png")
 
@@ -534,23 +488,3 @@ if FP
     fig.canvas.draw() # Update the figure
     savefig("JCP/ranksInEnergy_FP_$testCase.png")
 end
-
-
-#depth
-fig = figure("Dose, MC vs DLRA different grids",dpi=500)
-ax = gca()
-ax.plot(zMid_MC[1:end],(doseMC[idxX_MC,idxY_MC,1:end]),linestyle="solid", label="Monte Carlo",linewidth=2, alpha=1.0,color=mycolors[1])
-ax.plot(zMid_MC,(doseDLRA_high[idxX_MC,idxY_MC,:]),linestyle="dashed", label="DLRA, nPn=$m_high, uniform grid 80x80x280",linewidth=2, alpha=1.0,color=mycolors[2])
-# ax.plot(zMid_low_Pn,(dosePn[idxX_low_Pn,idxY_low_Pn,:]),linestyle="dashed", label="DLRA, nPn=$m_low, uniform grid 20x20x70",linewidth=2, alpha=1.0,color=mycolors[3])
-ax.plot(zMid_DLRA,(doseDLRA_high_nonUniform[idxX_DLRA,idxY_DLRA,:]),linestyle="dashdot", label="DLRA, nPn=$m_high, non-uniform grid 40x40x140",linewidth=2, alpha=1.0,marker="",markevery=4,color=mycolors[3])
-ax.plot(zMid_low_DLRA,(doseDLRA_low_nonUniform[idxX_low_DLRA,idxY_low_DLRA,:]),linestyle="dashdot", label="DLRA, nPn=$m_low, non-uniform grid 20x20x70",linewidth=2, alpha=1.0,marker="",markevery=2,color=mycolors[4])
-ax.tick_params("both",labelsize=10) 
-#ax.set_ylim(0,0.009)
-#ax.set_xlim(-0.25,2.25)
-#colorbar()
-plt.xlabel("z [cm]", fontsize=10)
-plt.ylabel("dep. energy [MeV]", fontsize=10)
-ax.legend(loc="upper left", fontsize=10)
-plt.legend(handlelength=3)
-tight_layout()
-savefig("JCP/DepthCut_MCvsDLRADiffGrids_$testCase.png")

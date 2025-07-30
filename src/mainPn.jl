@@ -11,13 +11,13 @@ using JLD2
 using CUDA
 
 include("settings.jl")
-include("SolverGPU.jl")
+#include("SolverGPU.jl")
 include("SolverCPU.jl")
 
 # # specify toml file location
-file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_Boltzmann.toml" 
+# file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_Boltzmann.toml" 
 # file_path = "configFiles/config_FullPn_SingleBeam_Heterogeneous_Boltzmann.toml" 
-# file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_FP.toml" 
+file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_FP.toml" 
 # file_path = "configFiles/config_FullPn_SingleBeam_Heterogeneous_FP.toml" 
 
 file_name = split(file_path, ".")[1]
@@ -74,7 +74,8 @@ YZ = (s.yMid'.*ones(size(s.zMid)))'
 # vtkfile["dose_collided"] = dose_coll
 # outfiles = vtk_save(vtkfile)
 
-save("output/dose_fullPn_nPN$(s.nPN)_$file_name.jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e))
+#uncomment to write out solution files
+# save("output/dose_fullPn_nPN$(s.nPN)_$file_name.jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e))
 
 # plot results
 fig, (ax1, ax2, ax3, ax4) = plt.subplots(2, 2, dpi=200);
@@ -86,7 +87,7 @@ im3 = ax3.pcolormesh(YZ',Z',dose_DLR[idxX,:,:]'.-dose_coll[idxX,:,:]',vmin=0,vma
 plt.colorbar(im3,ax=ax3)
 ax4.plot(s.zMid,dose_DLR[idxX,idxY,:],label="total dose")
 ax4.plot(s.zMid,dose_coll[idxX,idxY,:],label="collided")
-ax4.plot(s.zMid,dose_DLR[idxX,idxY,:] .- dose_coll[idxX,idxY,:],label="uncollided")
+ax4.plot(s.zMid,(dose_DLR[idxX,idxY,:] .- dose_coll[idxX,idxY,:])+(dose_DLR[idxX,idxY+1,:] .- dose_coll[idxX,idxY+1,:]),label="uncollided")
 ax1.title.set_text("Total dose")
 ax2.title.set_text("Collided dose")
 ax3.title.set_text("Uncollided dose")

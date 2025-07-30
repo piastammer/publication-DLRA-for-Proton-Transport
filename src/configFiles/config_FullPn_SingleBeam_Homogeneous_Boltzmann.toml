@@ -11,7 +11,7 @@ ny = 23
 nz = 73
 nMoments = 75
 order = 2
-solverName = "Tracer_rankAdaptiveInEnergy" 
+solverName = "Tracer_fullPnInEnergy" 
 tracerFileName = "Boltzmann_E90_res1mm"
 cfl = 50
 
