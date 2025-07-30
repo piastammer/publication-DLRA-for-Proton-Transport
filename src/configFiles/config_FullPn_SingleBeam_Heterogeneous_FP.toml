@@ -1,6 +1,6 @@
 [physics]
 particle = "Protons"
-problem = "matfromCT"
+problem = "BoxInsert"
 model = "FP" 
 OmegaMin = 180
 eKin = 80

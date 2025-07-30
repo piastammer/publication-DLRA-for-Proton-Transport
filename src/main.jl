@@ -54,7 +54,7 @@ file_path6 = "configFiles/config_SeveralBeams_Homogeneous_FP.toml"
 const dqage_state = Dict{Symbol, Any}()
 const to = TimerOutput()
 
-function runAndPlot(file_path)
+function runAndPlot(file_path,write_files=false)
     config = TOML.parsefile(file_path)
     trace = get(config["computation"], "trace", "false")
     disableGPU = get(config["computation"], "disableGPU", "false")
@@ -95,9 +95,10 @@ function runAndPlot(file_path)
     ZX = (s.zMid'.*ones(size(s.xMid)))
     YZ = (s.yMid'.*ones(size(s.zMid)))'
 
-    save("output/rankInEnergy_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName).jld2", "energy", solver1.csd.eGrid[2:end], "rank", rankInTime₂[2,:])
-    save("output/dose_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName)_$(file_name).jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e),"x", s.xMid,"y",s.yMid,"z",s.zMid)
-
+    if write_files
+        save("output/rankInEnergy_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName).jld2", "energy", solver1.csd.eGrid[2:end], "rank", rankInTime₂[2,:])
+        save("output/dose_nPN$(s.nPN)_tol$(s.epsAdapt)_$(s.tracerFileName).jld2", "dose", dose_DLR./sum(dose_DLR[dose_DLR.>0]) * sum(mu_e),"x", s.xMid,"y",s.yMid,"z",s.zMid)
+    end 
     epsAdapt=s.epsAdapt
     #epsAdapt1=s1.epsAdapt
     fig = figure()
@@ -121,9 +122,9 @@ function runAndPlot(file_path)
     plt.colorbar(im2,ax=ax2)
     im3 = ax3.pcolormesh(YZ',Z',dose_DLR[idxX,:,:]'.-dose_coll[idxX,:,:]',vmin=0,vmax=maximum(dose_DLR[idxX,:,:].-dose_coll[idxX,:,:]),cmap="jet")
     plt.colorbar(im3,ax=ax3)
-    ax4.plot(s.zMid,dose_DLR[idxX,idxY,:],label="total dose")
-    ax4.plot(s.zMid,dose_coll[idxX,idxY,:],label="collided")
-    ax4.plot(s.zMid,dose_DLR[idxX,idxY,:] .- dose_coll[idxX,idxY,:],label="uncollided")
+    ax4.plot(s.zMid,dose_DLR[idxX,idxY,:].+dose_DLR[idxX,idxY+1,:],label="total dose")
+    ax4.plot(s.zMid,dose_coll[idxX,idxY,:].+dose_coll[idxX,idxY+1,:],label="collided")
+    ax4.plot(s.zMid,(dose_DLR[idxX,idxY,:] .- dose_coll[idxX,idxY,:]).+(dose_DLR[idxX,idxY+1,:] .- dose_coll[idxX,idxY+1,:]),label="uncollided")
     #load and plot reference results
 
     ax1.title.set_text("Total dose")
@@ -149,9 +150,9 @@ function runAndPlot(file_path)
     println("main for config $(file_path) finished")
 end
 
-runAndPlot(file_path1)
+# runAndPlot(file_path1)
 # runAndPlot(file_path2)
 # runAndPlot(file_path3)
 # runAndPlot(file_path4)
 # runAndPlot(file_path5)
-# runAndPlot(file_path6)
+runAndPlot(file_path6)

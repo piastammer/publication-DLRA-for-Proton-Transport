@@ -241,14 +241,6 @@ idxZ_low_Pn_1 = findmin(abs.(zMid_low_Pn .- z1))[2]
 idxZ_low_Pn_2 = findmin(abs.(zMid_low_Pn .- z2))[2]
 idxZ_low_Pn_3 = findmin(abs.(zMid_low_Pn .- z3))[2]
 
-# doseDLRA_high = normalize_integralEnergy(Float32.(doseDLRA_high),xMid_DLRA,yMid_DLRA,zMid_DLRA,Float64(beamEn))
-# doseDLRA_low = normalize_integralEnergy(Float32.(doseDLRA_low),xMid_low_DLRA,yMid_low_DLRA,zMid_low_DLRA,Float64(beamEn))
-# doseMC = normalize_integralEnergy(Float32.(doseMC),xMid_MC,yMid_MC,zMid_MC,Float64(beamEn))
-# dosePn = normalize_integralEnergy(Float32.(dosePn),xMid_low_Pn,yMid_low_Pn,zMid_low_Pn,Float64(beamEn))
-# doseDLRA_high_FP = normalize_integralEnergy(Float32.(doseDLRA_high_FP),xMid_DLRA,yMid_DLRA,zMid_DLRA,Float64(beamEn))
-# doseDLRA_low_FP = normalize_integralEnergy(Float32.(doseDLRA_low_FP),xMid_low_DLRA,yMid_low_DLRA,zMid_low_DLRA,Float64(beamEn))
-# dosePn_FP = normalize_integralEnergy(Float32.(dosePn_FP),xMid_low_Pn,yMid_low_Pn,zMid_low_Pn,Float64(beamEn))
-
 prop_cycle = plt.rcParams["axes.prop_cycle"]
 mycolors = prop_cycle.by_key()["color"]
 
@@ -311,25 +303,6 @@ ax.legend(loc="upper left", fontsize=10)
 plt.legend(handlelength=3)
 tight_layout()
 savefig("JCP/DepthCut_MCvsDLRAvsPn_$testCase.png")
-
-#depth
-# fig = figure("Dose, MC vs DLRA vs Pn ϑ= 0.01 lat. cuts",dpi=500)
-# ax = gca()
-# ax.plot(zMid_MC[1:end],(doseMC[idxX_MC,idxY_MC,1:end]+doseMC[idxX_MC,idxY_MC+1,1:end]+doseMC[idxX_MC+1,idxY_MC,1:end]+doseMC[idxX_MC+1,idxY_MC+1,1:end])./4,linestyle="solid", label="Monte Carlo",linewidth=2, alpha=1.0,color=mycolors[1])
-# ax.plot(zMid_DLRA,(doseDLRA_high[idxX_DLRA,idxY_DLRA,:]+doseDLRA_high[idxX_DLRA,idxY_DLRA+1,:]+doseDLRA_high[idxX_DLRA+1,idxY_DLRA,:]+doseDLRA_high[idxX_DLRA+1,idxY_DLRA+1,:])./4,linestyle="dashed", label="DLRA, nPn=$m_high, dx=0.25mm",linewidth=2, alpha=1.0,color=mycolors[2])
-# ax.plot(zMid_low_DLRA,(doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA,:]+doseDLRA_low[idxX_low_DLRA,idxY_low_DLRA-1,:]+doseDLRA_low[idxX_low_DLRA-1,idxY_low_DLRA,:]+doseDLRA_low[idxX_low_DLRA-1,idxY_low_DLRA-1,:])./4,linestyle="dotted", label="DLRA, nPn=$m_low, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[3])
-# ax.plot(zMid_low_Pn,(dosePn[idxX_low_Pn,idxY_low_Pn,:]+dosePn[idxX_low_Pn,idxY_low_Pn-1,:]+dosePn[idxX_low_Pn+1,idxY_low_Pn,:]+dosePn[idxX_low_Pn+1,idxY_low_Pn-1,:])./4,linestyle="dashdot", label="full rank, nPn=$m_low, dx=1mm",linewidth=2, alpha=1.0,color=mycolors[4])
-# ax.tick_params("both",labelsize=10) 
-# #ax.set_ylim(0,0.009)
-# #ax.set_xlim(-0.25,2.25)
-# #colorbar()
-# plt.xlabel("z [cm]", fontsize=10)
-# plt.ylabel("dep. energy [MeV]", fontsize=10)
-# ax.legend(loc="upper left", fontsize=10)
-# plt.legend(handlelength=3)
-# tight_layout()
-# savefig("JCP/DepthCut_MCvsDLRAvsPn_$testCase.png")
-
 
 if FP
     fig = figure("Dose, MC vs DLRA ϑ= 0.01 lat. cuts, FP",dpi=500)

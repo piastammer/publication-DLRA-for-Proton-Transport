@@ -1,6 +1,6 @@
 [physics]
 particle = "Protons"
-problem = "matfromCT"
+problem = "BoxInsert"
 model = "Boltzmann" 
 OmegaMin = 0
 eKin = 80
