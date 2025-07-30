@@ -150,9 +150,9 @@ function runAndPlot(file_path,write_files=false)
     println("main for config $(file_path) finished")
 end
 
-# runAndPlot(file_path1)
+runAndPlot(file_path1)
 # runAndPlot(file_path2)
 # runAndPlot(file_path3)
 # runAndPlot(file_path4)
 # runAndPlot(file_path5)
-runAndPlot(file_path6)
+# runAndPlot(file_path6)

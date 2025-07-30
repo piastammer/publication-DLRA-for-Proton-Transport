@@ -11,7 +11,7 @@ ny = 23
 nz = 73
 nMoments = 19
 order = 2
-solverName = "Tracer_fullPnInEnergy_FP" 
+solverName = "Tracer_rankAdaptiveInEnergy_FP" 
 tracerFileName = "FP_E90_res1mm_corrected"
 cfl = 50
 

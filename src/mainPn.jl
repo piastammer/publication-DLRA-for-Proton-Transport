@@ -15,9 +15,9 @@ include("settings.jl")
 include("SolverCPU.jl")
 
 # # specify toml file location
-# file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_Boltzmann.toml" 
+file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_Boltzmann.toml" 
 # file_path = "configFiles/config_FullPn_SingleBeam_Heterogeneous_Boltzmann.toml" 
-file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_FP.toml" 
+# file_path = "configFiles/config_FullPn_SingleBeam_Homogeneous_FP.toml" 
 # file_path = "configFiles/config_FullPn_SingleBeam_Heterogeneous_FP.toml" 
 
 file_name = split(file_path, ".")[1]
