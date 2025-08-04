@@ -17,3 +17,8 @@ By default the code runs on the GPU if available, this can also be switched by s
 - `src/tracer_results` contains the uncollided flux precomputed with the ray tracer for all test cases in the paper, due to githubs size limit of 100MB for individual files only coarse resolution results could be included at this moment. We are working on a solution for the larger result files for finer resolutions
 - `src/data` contains stopping power data extracted from [TOPAS MC](https://www.topasmc.org/) or [PSTAR](https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html) for the 12 elements used for material composition
 - `topasMC` contains parameter files to compute Monte Carlo references used for comparison with [TOPAS MC](https://www.topasmc.org/) 
+
+### Version info
+The following versions were used when developing the code and for the numerical results presented in the paper
+- julia: version 1.10.4
+- TOPAS MC: version 3.9
