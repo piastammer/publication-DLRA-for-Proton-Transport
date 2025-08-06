@@ -1,5 +1,6 @@
 ## Code for deterministic dynamical low-rank proton transport calculations
-Source code to reproduce results from paper [add link]. Key components of the method are
+Source code to reproduce results from paper "A high-order deterministic dynamical low-rank method for proton
+transport in heterogeneous media". Key components of the method are
 - collided-uncollided split
 - uncollided is computed with inhouse raytracer (cannot be published here, so we include precomputed results files)
 - collided is discretized using spherical harmonics in angle and FV with a second order upwind scheme in space
